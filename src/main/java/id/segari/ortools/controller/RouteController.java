@@ -4,17 +4,19 @@ import id.segari.ortools.dto.ResponseDTO;
 import id.segari.ortools.dto.RouteDTO;
 import id.segari.ortools.dto.RouteResultDTO;
 import id.segari.ortools.service.RouteService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @Validated
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/v1/routes")
 public class RouteController {
 
     private final RouteService routeService;
+
+    public RouteController(RouteService routeService) {
+        this.routeService = routeService;
+    }
 
     @PostMapping("/vrp/sp-start/arbitrary-finish")
     public ResponseDTO<RouteResultDTO> vrp1(

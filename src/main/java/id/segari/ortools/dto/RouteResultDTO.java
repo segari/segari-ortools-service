@@ -1,15 +1,25 @@
 package id.segari.ortools.dto;
 
-import lombok.*;
-
 import java.util.ArrayList;
 import java.util.List;
 
-@AllArgsConstructor
-@NoArgsConstructor
-@Getter
-@Setter
-@Builder
-public class RouteResultDTO {
-    private List<ArrayList<Long>> result;
+public record RouteResultDTO(
+        List<ArrayList<Long>> result
+) {
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private List<ArrayList<Long>> result;
+
+        public Builder result(List<ArrayList<Long>> result) {
+            this.result = result;
+            return this;
+        }
+
+        public RouteResultDTO build() {
+            return new RouteResultDTO(result);
+        }
+    }
 }

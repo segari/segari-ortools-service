@@ -8,19 +8,37 @@ import id.segari.ortools.dto.SegariRouteOrderDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
 import id.segari.ortools.exception.BaseException;
 import id.segari.ortools.util.GeoUtils;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.http.HttpStatus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class SegariRoute {
     private final SegariRouteType type;
     private final List<SegariRouteOrderDTO> orders;
+
+    private SegariRoute(SegariRouteType type, List<SegariRouteOrderDTO> orders) {
+        this.type = type;
+        this.orders = orders;
+    }
+
+    private void setVehicleNumbers(int vehicleNumbers) {
+        this.vehicleNumbers = vehicleNumbers;
+    }
+
+    private void setMaxTotalDistanceInMeter(int maxTotalDistanceInMeter) {
+        this.maxTotalDistanceInMeter = maxTotalDistanceInMeter;
+    }
+
+    private void setMaxOrderCount(int maxOrderCount) {
+        this.maxOrderCount = maxOrderCount;
+    }
+
+    private void setTspFixStartIndex(int tspFixStartIndex) {
+        this.tspFixStartIndex = tspFixStartIndex;
+    }
+
     private boolean hasDistanceBetweenOrderDimension = false;
     private boolean hasDistanceWithSpDimension = false;
     private boolean hasDistanceBetweenNodeDimension = false;
@@ -34,7 +52,6 @@ public class SegariRoute {
     private long[][] distanceMatrix;
     private int[] start;
     private int[] finish;
-    @Setter(AccessLevel.PRIVATE)
     private int vehicleNumbers;
     private long[] maxOrderDemands;
     private long[] maxOrderVehicleCapacities;
@@ -46,12 +63,10 @@ public class SegariRoute {
     private long[] loadFactorVehicleCapacities;
     private long[] extensionRatioDemands;
     private long[] extensionRatioVehicleCapacities;
-    @Setter(AccessLevel.PRIVATE)
     private int maxTotalDistanceInMeter;
     private int maxDistanceBetweenOrderInMeter;
     private int maxDistanceWithSpInMeter;
     private int maxDistanceBetweenNodeInMeter;
-    @Setter(AccessLevel.PRIVATE)
     private int maxOrderCount;
     private int maxInstanOrderCount;
     private int maxTurboOrderCount;
@@ -59,31 +74,30 @@ public class SegariRoute {
     private int extensionRatio;
     private int turboInstanRatio;
     private int extensionCount;
-    @Setter(AccessLevel.PRIVATE)
     private int tspFixStartIndex;
 
     public static SegariRoute newVrpStartFromSpAndArbitraryFinish(SegariRouteDTO dto){
-        if (dto.getOrders().size() <= 2) throw SegariRoutingErrors.emptyOrder();
-        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.getOrders().get(0).getType())) throw SegariRoutingErrors.indexZeroNotDummy();
-        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(dto.getOrders().get(1).getType())) throw SegariRoutingErrors.indexOneNotSp();
-        SegariRoute segariRoute = new SegariRoute(SegariRouteType.VRP_SP_START_ARBITRARY_FINISH, dto.getOrders());
-        injectVrpAttributes(segariRoute, dto.getMaxTotalDistanceInMeter(), dto.getMaxOrderCount(), dto.getOrders().size() - 2);
+        if (dto.orders().size() <= 2) throw SegariRoutingErrors.emptyOrder();
+        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
+        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(dto.orders().get(1).type())) throw SegariRoutingErrors.indexOneNotSp();
+        SegariRoute segariRoute = new SegariRoute(SegariRouteType.VRP_SP_START_ARBITRARY_FINISH, dto.orders());
+        injectVrpAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), dto.orders().size() - 2);
         return segariRoute;
     }
 
     public static SegariRoute newVrpWithArbitraryStartAndFinish(SegariRouteDTO dto){
-        if (dto.getOrders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
-        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.getOrders().get(0).getType())) throw SegariRoutingErrors.indexZeroNotDummy();
-        SegariRoute segariRoute = new SegariRoute(SegariRouteType.VRP_ARBITRARY_START_AND_FINISH, dto.getOrders());
-        injectVrpAttributes(segariRoute, dto.getMaxTotalDistanceInMeter(), dto.getMaxOrderCount(), dto.getOrders().size() - 1);
+        if (dto.orders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
+        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
+        SegariRoute segariRoute = new SegariRoute(SegariRouteType.VRP_ARBITRARY_START_AND_FINISH, dto.orders());
+        injectVrpAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), dto.orders().size() - 1);
         return segariRoute;
     }
 
     public static SegariRoute newTspWithStartAndFinish(SegariRouteDTO dto, int startIndex){
-        if (dto.getOrders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
-        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.getOrders().get(0).getType())) throw SegariRoutingErrors.indexZeroNotDummy();
-        SegariRoute segariRoute = new SegariRoute(SegariRouteType.TSP_FIX_START_ARBITRARY_FINISH, dto.getOrders());
-        injectTspAttributes(segariRoute, dto.getMaxTotalDistanceInMeter(), dto.getMaxOrderCount(), startIndex);
+        if (dto.orders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
+        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
+        SegariRoute segariRoute = new SegariRoute(SegariRouteType.TSP_FIX_START_ARBITRARY_FINISH, dto.orders());
+        injectTspAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), startIndex);
         return segariRoute;
     }
 
@@ -314,8 +328,8 @@ public class SegariRoute {
             while (!routing.isEnd(index)){
                 final long thisRoute = manager.indexToNode(index);
                 final SegariRouteOrderDTO order = this.orders.get((int) thisRoute);
-                final long orderId = order.getId();
-                if (!hasExtension) hasExtension = Boolean.TRUE.equals(order.getIsExtension());
+                final long orderId = order.id();
+                if (!hasExtension) hasExtension = Boolean.TRUE.equals(order.isExtension());
                 if (orderId != -1L && orderId != -2L) route.add(orderId);
                 index = solution.value(routing.nextVar(index));
             }
@@ -352,10 +366,10 @@ public class SegariRoute {
         long[] loadFactorDemands = new long[length];
         long[] extensionRatioDemands = new long[length];
         for (int i = startIndex; i < length; i++){
-            if (this.hasMaxInstanOrderCountDimension) maxInstanDemands[i] = this.orders.get(i).getIsInstan() ? 1 : 0;
-            if (this.hasMaxTurboOrderCountDimension) maxTurboDemands[i] = this.orders.get(i).getIsTurbo() ? 1 : 0;
+            if (this.hasMaxInstanOrderCountDimension) maxInstanDemands[i] = this.orders.get(i).isInstan() ? 1 : 0;
+            if (this.hasMaxTurboOrderCountDimension) maxTurboDemands[i] = this.orders.get(i).isTurbo() ? 1 : 0;
             if (this.hasLoadFactorDimension) loadFactorDemands[i] = 0; // TODO - define load factor when possible
-            if (this.hasExtensionTurboInstanRatioDimension) extensionRatioDemands[i] = this.orders.get(i).getIsExtension() ? this.extensionRatio : this.turboInstanRatio;
+            if (this.hasExtensionTurboInstanRatioDimension) extensionRatioDemands[i] = this.orders.get(i).isExtension() ? this.extensionRatio : this.turboInstanRatio;
         }
         if (this.hasMaxInstanOrderCountDimension) {
             this.maxInstanDemands = maxInstanDemands;
@@ -399,10 +413,10 @@ public class SegariRoute {
                     continue;
                 }
                 long basicValue = Math.round(GeoUtils.getHaversineDistanceInMeter(
-                                        this.orders.get(i).getLatitude(),
-                                        this.orders.get(i).getLongitude(),
-                                        this.orders.get(j).getLatitude(),
-                                        this.orders.get(j).getLongitude()));
+                                        this.orders.get(i).latitude(),
+                                        this.orders.get(i).longitude(),
+                                        this.orders.get(j).latitude(),
+                                        this.orders.get(j).longitude()));
                 if (this.hasDistanceBetweenNodeDimension){
                     distanceMatrix[i][j] = basicValue > this.maxDistanceBetweenNodeInMeter ? this.maxTotalDistanceInMeter + 1 : basicValue;
                     continue;
@@ -421,11 +435,11 @@ public class SegariRoute {
     }
 
     private boolean isSpNode(int i, int j) {
-        return SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(i).getType()) || SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(j).getType());
+        return SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(i).type()) || SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(j).type());
     }
 
     private boolean isDummyNode(int i, int j) {
-        return SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(this.orders.get(i).getType()) || SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(this.orders.get(j).getType());
+        return SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(this.orders.get(i).type()) || SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(this.orders.get(j).type());
     }
 
     private int[] getFinish() {
@@ -472,7 +486,7 @@ public class SegariRoute {
         if (SegariRouteType.VRP_ARBITRARY_START_AND_FINISH.equals(this.type)) return 1;
         if (SegariRouteType.VRP_SP_START_ARBITRARY_FINISH.equals(this.type)) return 2;
         if (SegariRouteType.TSP_FIX_START_ARBITRARY_FINISH.equals(this.type)) {
-            if (SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(orders.get(1).getType())){
+            if (SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(orders.get(1).type())){
                 return 2;
             }else {
                 return 1;

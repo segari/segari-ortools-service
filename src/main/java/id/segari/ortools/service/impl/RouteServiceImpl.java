@@ -16,17 +16,17 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     public RouteResultDTO vrpWithSpStartAndArbitraryFinish(RouteDTO dto) {
-        SegariRoute segariRoute = SegariRoute.newVrpStartFromSpAndArbitraryFinish(dto.getRoute())
-                .addDistanceBetweenOrderDimension(dto.getMaxDistanceBetweenOrder())
-                .addDistanceWithSpDimension(dto.getMaxDistanceFromSp())
-                .addMaxInstanOrderCountDimension(dto.getMaxInstanOrderCount())
-                .addMaxTurboOrderCountDimension(dto.getMaxTurboOrderCount());
-        if (Boolean.TRUE.equals(dto.getIsUsingRatioDimension())) {
-            if (Objects.isNull(dto.getExtensionCount())) throw SegariRoutingErrors.invalidRoutingParameter("getExtensionCount in vrpWithSpStartAndArbitraryFinish");
-            segariRoute.addExtensionTurboInstanRatioDimension(1, 100, dto.getExtensionCount());
+        SegariRoute segariRoute = SegariRoute.newVrpStartFromSpAndArbitraryFinish(dto.route())
+                .addDistanceBetweenOrderDimension(dto.maxDistanceBetweenOrder())
+                .addDistanceWithSpDimension(dto.maxDistanceFromSp())
+                .addMaxInstanOrderCountDimension(dto.maxInstanOrderCount())
+                .addMaxTurboOrderCountDimension(dto.maxTurboOrderCount());
+        if (Boolean.TRUE.equals(dto.isUsingRatioDimension())) {
+            if (Objects.isNull(dto.extensionCount())) throw SegariRoutingErrors.invalidRoutingParameter("getExtensionCount in vrpWithSpStartAndArbitraryFinish");
+            segariRoute.addExtensionTurboInstanRatioDimension(1, 100, dto.extensionCount());
             segariRoute.setResultMustContainExtension();
             segariRoute.setResultMinimum(4);
-            segariRoute.alterVehicleNumbers(dto.getExtensionCount());
+            segariRoute.alterVehicleNumbers(dto.extensionCount());
         }
         return RouteResultDTO.builder()
                 .result(segariRoute.route())
@@ -36,21 +36,21 @@ public class RouteServiceImpl implements RouteService {
     @Override
     public RouteResultDTO vrpWithArbitraryStartAndArbitraryFinish(RouteDTO dto) {
         return RouteResultDTO.builder()
-                .result(SegariRoute.newVrpWithArbitraryStartAndFinish(dto.getRoute())
-                        .addDistanceBetweenNodeDimension(dto.getMaxDistanceBetweenOrder())
-                        .setResultMinimum(dto.getRoute().getMaxOrderCount())
+                .result(SegariRoute.newVrpWithArbitraryStartAndFinish(dto.route())
+                        .addDistanceBetweenNodeDimension(dto.maxDistanceBetweenOrder())
+                        .setResultMinimum(dto.route().maxOrderCount())
                         .route())
                 .build();
     }
 
     @Override
     public RouteResultDTO tspWithFixStartAndArbitraryFinish(RouteDTO dto, Integer index) {
-        SegariRoute segariRoute = SegariRoute.newTspWithStartAndFinish(dto.getRoute(), index);
+        SegariRoute segariRoute = SegariRoute.newTspWithStartAndFinish(dto.route(), index);
 
-        if (Objects.nonNull(dto.getMaxDistanceBetweenOrder())) segariRoute.addDistanceBetweenOrderDimension(dto.getMaxDistanceBetweenOrder());
-        if (Objects.nonNull(dto.getMaxDistanceFromSp())) segariRoute.addDistanceWithSpDimension(dto.getMaxDistanceFromSp());
-        if (Objects.nonNull(dto.getMaxInstanOrderCount())) segariRoute.addMaxInstanOrderCountDimension(dto.getMaxInstanOrderCount());
-        if (Objects.nonNull(dto.getMaxTurboOrderCount())) segariRoute.addMaxTurboOrderCountDimension(dto.getMaxTurboOrderCount());
+        if (Objects.nonNull(dto.maxDistanceBetweenOrder())) segariRoute.addDistanceBetweenOrderDimension(dto.maxDistanceBetweenOrder());
+        if (Objects.nonNull(dto.maxDistanceFromSp())) segariRoute.addDistanceWithSpDimension(dto.maxDistanceFromSp());
+        if (Objects.nonNull(dto.maxInstanOrderCount())) segariRoute.addMaxInstanOrderCountDimension(dto.maxInstanOrderCount());
+        if (Objects.nonNull(dto.maxTurboOrderCount())) segariRoute.addMaxTurboOrderCountDimension(dto.maxTurboOrderCount());
 
         return RouteResultDTO.builder()
                 .result(segariRoute.route())
