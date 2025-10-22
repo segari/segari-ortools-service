@@ -3,7 +3,6 @@ WORKDIR /build
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 COPY src/ /build/src/
-COPY .git/ /build/.git/
 RUN mvn clean install -Dmaven.test.skip=true
 
 FROM eclipse-temurin:25-jre
