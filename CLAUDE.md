@@ -12,6 +12,8 @@ This is a Spring Boot microservice that provides route optimization APIs using G
 - Google OR-Tools 9.8.3296
 - Maven 3.9.6
 - Java Records (all DTOs)
+- RestClient for HTTP calls
+- Virtual Threads enabled
 
 ## Common Development Commands
 
@@ -214,6 +216,46 @@ When `isUsingRatioDimension=true`:
 - Vehicle count set to `extensionCount`
 - Capacity calculated to force equal extension distribution
 - Results filtered to require extensions and minimum 4 orders
+
+## OSRM Integration
+
+The service integrates with Open Source Routing Machine (OSRM) for real-world distance/duration calculations.
+
+### Configuration
+- **Local**: `application-local.properties` sets `osrm.base-url=http://localhost:5000`
+- **Production**: `application-production.properties` (configure with actual OSRM server URL)
+- Profile switching: Use `-Dspring.profiles.active=local` or `=production`
+
+### OSRMRestService
+Located in `external` package, provides distance matrix calculation:
+
+```java
+OSRMTableResponseDTO getDistanceMatrix(List<LatLong> locations)
+```
+
+**Implementation details:**
+- Uses Spring's modern **RestClient** (not RestTemplate)
+- Calls OSRM Table API: `/table/v1/driving/{coordinates}?annotations=duration,distance`
+- Coordinates format: `longitude,latitude` (note: longitude first!)
+- Converts API response from `double[][]` to `long[][]` using `Math.round()`
+- Works seamlessly with **Virtual Threads** for high concurrency
+
+**Virtual Threads:**
+- Enabled via `spring.threads.virtual.enabled=true`
+- RestClient blocking calls become cheap (millions of threads possible)
+- No need for reactive programming complexity
+
+### Usage Example
+```java
+List<LatLong> locations = List.of(
+    new LatLong(-6.1751, 106.8272),
+    new LatLong(-6.1349, 106.8133),
+    new LatLong(-6.1927, 106.8215)
+);
+OSRMTableResponseDTO response = osrmRestService.getDistanceMatrix(locations);
+long[][] distances = response.distances(); // in meters
+long[][] durations = response.durations(); // in seconds
+```
 
 ## Error Handling
 
