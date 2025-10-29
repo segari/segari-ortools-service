@@ -1,5 +1,11 @@
 FROM eclipse-temurin:25-jdk AS build
 
+# Verify and set JAVA_HOME
+RUN echo "JAVA_HOME: $JAVA_HOME" && \
+    echo "Java location:" && \
+    which java && \
+    java -version
+
 WORKDIR /build
 
 # Copy Maven Wrapper files
@@ -8,7 +14,7 @@ COPY mvnw .
 COPY pom.xml .
 
 # Download dependencies
-RUN ./mvnw dependency:go-offline -B
+RUN chmod +x ./mvnw && ./mvnw dependency:go-offline -B
 
 # Copy source and build
 COPY src/ /build/src/
