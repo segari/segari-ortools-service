@@ -125,7 +125,9 @@ public class SegariRoute {
         SegariRoute segariRoute = new SegariRoute(SegariRouteType.TSP_SP_START_ARBITRARY_FINISH, dto.orders());
         injectTspAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), 1);
         segariRoute.setOsrmRestService(osrmRestService);
-        segariRoute.setMandatoryOrderIds(dto.mandatoryOrders());
+        if (Objects.nonNull(dto.mandatoryOrders()) && !dto.mandatoryOrders().isEmpty()){
+            segariRoute.setMandatoryOrderIds(dto.mandatoryOrders());
+        }
         return segariRoute;
     }
 
@@ -330,7 +332,7 @@ public class SegariRoute {
 
     private void addPenaltyAndDropVisit(RoutingModel routing, RoutingIndexManager manager) {
         long penalty = 100_000;
-        long mandatoryPenalty = 10_000_000;
+        long mandatoryPenalty = 1_000_000_000;
         for (int i = determineStartFromVrpType(); i < this.distanceMatrix.length; ++i) {
             SegariRouteOrderDTO order = this.orders.get(i);
             routing.addDisjunction(new long[] {manager.nodeToIndex(i)}, mandatoryOrderIds.contains(order.id()) ? mandatoryPenalty : penalty);
@@ -373,6 +375,11 @@ public class SegariRoute {
             }
 
             putResult(route, results);
+        }
+
+        // Verify all mandatory orders were visited
+        if (!mandatoryOrderIds.isEmpty() && !results.isEmpty()) {
+           if (!new HashSet<>(results.getFirst()).containsAll(mandatoryOrderIds)) return Collections.emptyList();
         }
 
         return results;
