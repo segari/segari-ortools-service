@@ -3,6 +3,7 @@ package id.segari.ortools.service.impl;
 import id.segari.ortools.dto.RouteDTO;
 import id.segari.ortools.dto.RouteResultDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
+import id.segari.ortools.external.OSRMRestService;
 import id.segari.ortools.ortool.SegariRoute;
 import id.segari.ortools.service.RouteService;
 import org.springframework.context.annotation.Primary;
@@ -13,6 +14,12 @@ import java.util.Objects;
 @Service
 @Primary
 public class RouteServiceImpl implements RouteService {
+
+    private final OSRMRestService osrmRestService;
+
+    public RouteServiceImpl(OSRMRestService osrmRestService) {
+        this.osrmRestService = osrmRestService;
+    }
 
     @Override
     public RouteResultDTO vrpWithSpStartAndArbitraryFinish(RouteDTO dto) {
@@ -55,5 +62,14 @@ public class RouteServiceImpl implements RouteService {
         return RouteResultDTO.builder()
                 .result(segariRoute.route())
                 .build();
+    }
+
+    @Override
+    public RouteResultDTO tspWithSpStartAndArbitraryFinish(RouteDTO dto) {
+        final SegariRoute segariRoute = SegariRoute.newTspWithSpStartAndArbitraryFinish(dto.route(), osrmRestService);
+        segariRoute.addDistanceBetweenOrderDimension(dto.maxDistanceBetweenOrder());
+        segariRoute.addDistanceWithSpDimension(Integer.MAX_VALUE);
+
+        return RouteResultDTO.builder().result(segariRoute.route()).build();
     }
 }

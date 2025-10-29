@@ -46,4 +46,13 @@ public class RouteController {
                 .build();
     }
 
+    @PostMapping("/tsp/sp-start/arbitrary-finish/use-osrm")
+    public ResponseDTO<RouteResultDTO> tsp2(
+            @RequestBody RouteDTO request
+    ){
+        return ResponseDTO.<RouteResultDTO>builder()
+                .data(routeService.tspWithSpStartAndArbitraryFinish(request))
+                .build();
+    }
+
 }
