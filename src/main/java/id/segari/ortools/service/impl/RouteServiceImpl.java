@@ -35,19 +35,15 @@ public class RouteServiceImpl implements RouteService {
             segariRoute.setResultMinimum(4);
             segariRoute.alterVehicleNumbers(dto.extensionCount());
         }
-        return RouteResultDTO.builder()
-                .result(segariRoute.route())
-                .build();
+        return new RouteResultDTO(segariRoute.route());
     }
 
     @Override
     public RouteResultDTO vrpWithArbitraryStartAndArbitraryFinish(RouteDTO dto) {
-        return RouteResultDTO.builder()
-                .result(SegariRoute.newVrpWithArbitraryStartAndFinish(dto.route())
-                        .addDistanceBetweenNodeDimension(dto.maxDistanceBetweenOrder())
-                        .setResultMinimum(dto.route().maxOrderCount())
-                        .route())
-                .build();
+        return new RouteResultDTO(SegariRoute.newVrpWithArbitraryStartAndFinish(dto.route())
+                .addDistanceBetweenNodeDimension(dto.maxDistanceBetweenOrder())
+                .setResultMinimum(dto.route().maxOrderCount())
+                .route());
     }
 
     @Override
@@ -59,9 +55,7 @@ public class RouteServiceImpl implements RouteService {
         if (Objects.nonNull(dto.maxInstanOrderCount())) segariRoute.addMaxInstanOrderCountDimension(dto.maxInstanOrderCount());
         if (Objects.nonNull(dto.maxTurboOrderCount())) segariRoute.addMaxTurboOrderCountDimension(dto.maxTurboOrderCount());
 
-        return RouteResultDTO.builder()
-                .result(segariRoute.route())
-                .build();
+        return new RouteResultDTO(segariRoute.route());
     }
 
     @Override
@@ -70,6 +64,6 @@ public class RouteServiceImpl implements RouteService {
         segariRoute.addDistanceBetweenOrderDimension(dto.maxDistanceBetweenOrder());
         segariRoute.addDistanceWithSpDimension(Integer.MAX_VALUE);
 
-        return RouteResultDTO.builder().result(segariRoute.route()).build();
+        return new RouteResultDTO(segariRoute.route());
     }
 }

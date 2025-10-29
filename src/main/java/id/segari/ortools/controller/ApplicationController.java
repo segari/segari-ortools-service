@@ -23,9 +23,6 @@ public class ApplicationController {
 
     @GetMapping("/versions")
     public ApplicationInfoDTO getVersions(){
-        return ApplicationInfoDTO.builder()
-                .commitId(gitProperties.getCommitId())
-                .buildAt(buildAt)
-                .build();
+        return new ApplicationInfoDTO(gitProperties.getCommitId(), buildAt);
     }
 }

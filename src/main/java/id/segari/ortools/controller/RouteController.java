@@ -22,18 +22,14 @@ public class RouteController {
     public ResponseDTO<RouteResultDTO> vrp1(
             @RequestBody RouteDTO request
     ){
-        return ResponseDTO.<RouteResultDTO>builder()
-                .data(routeService.vrpWithSpStartAndArbitraryFinish(request))
-                .build();
+        return new ResponseDTO<>(routeService.vrpWithSpStartAndArbitraryFinish(request), null);
     }
 
     @PostMapping("/vrp/arbitrary-start/arbitrary-finish")
     public ResponseDTO<RouteResultDTO> vrp2(
             @RequestBody RouteDTO request
     ){
-        return ResponseDTO.<RouteResultDTO>builder()
-                .data(routeService.vrpWithArbitraryStartAndArbitraryFinish(request))
-                .build();
+        return new ResponseDTO<>(routeService.vrpWithArbitraryStartAndArbitraryFinish(request), null);
     }
 
     @PostMapping("/tsp/fix-start/{index}/arbitrary-finish")
@@ -41,18 +37,14 @@ public class RouteController {
             @PathVariable Integer index,
             @RequestBody RouteDTO request
     ){
-        return ResponseDTO.<RouteResultDTO>builder()
-                .data(routeService.tspWithFixStartAndArbitraryFinish(request, index))
-                .build();
+        return new ResponseDTO<>(routeService.tspWithFixStartAndArbitraryFinish(request, index), null);
     }
 
     @PostMapping("/tsp/sp-start/arbitrary-finish/use-osrm")
     public ResponseDTO<RouteResultDTO> tsp2(
             @RequestBody RouteDTO request
     ){
-        return ResponseDTO.<RouteResultDTO>builder()
-                .data(routeService.tspWithSpStartAndArbitraryFinish(request))
-                .build();
+        return new ResponseDTO<>(routeService.tspWithSpStartAndArbitraryFinish(request), null);
     }
 
 }

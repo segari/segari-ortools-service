@@ -13,9 +13,7 @@ import id.segari.ortools.external.OSRMTableResponseDTO;
 import id.segari.ortools.util.GeoUtils;
 import org.springframework.http.HttpStatus;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class SegariRoute {
@@ -51,6 +49,7 @@ public class SegariRoute {
     private boolean hasLoadFactorDimension = false;
     private boolean hasExtensionTurboInstanRatioDimension = false;
     private boolean hasSetResultMinimum = false;
+    private boolean hasMandatoryOrdersDimension = false;
     private int minimumResult = 0;
     private boolean hasResultMustContainExtension = false;
     private long[][] distanceMatrix;
@@ -82,10 +81,16 @@ public class SegariRoute {
 
     private OSRMRestService osrmRestService;
     private boolean useOsrm;
+    private final Set<Long> mandatoryOrderIds = new HashSet<>();
 
     public void setOsrmRestService(OSRMRestService osrmRestService) {
         this.osrmRestService = osrmRestService;
         this.useOsrm = true;
+    }
+
+    private void setMandatoryOrderIds(Set<Long> mandatoryOrderIds) {
+        this.hasMandatoryOrdersDimension = true;
+        this.mandatoryOrderIds.addAll(mandatoryOrderIds);
     }
 
     public static SegariRoute newVrpStartFromSpAndArbitraryFinish(SegariRouteDTO dto){
@@ -120,6 +125,7 @@ public class SegariRoute {
         SegariRoute segariRoute = new SegariRoute(SegariRouteType.TSP_SP_START_ARBITRARY_FINISH, dto.orders());
         injectTspAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), 1);
         segariRoute.setOsrmRestService(osrmRestService);
+        segariRoute.setMandatoryOrderIds(dto.mandatoryOrders());
         return segariRoute;
     }
 
@@ -324,8 +330,10 @@ public class SegariRoute {
 
     private void addPenaltyAndDropVisit(RoutingModel routing, RoutingIndexManager manager) {
         long penalty = 100_000;
+        long mandatoryPenalty = 10_000_000;
         for (int i = determineStartFromVrpType(); i < this.distanceMatrix.length; ++i) {
-            routing.addDisjunction(new long[] {manager.nodeToIndex(i)}, penalty);
+            SegariRouteOrderDTO order = this.orders.get(i);
+            routing.addDisjunction(new long[] {manager.nodeToIndex(i)}, mandatoryOrderIds.contains(order.id()) ? mandatoryPenalty : penalty);
         }
     }
 
@@ -341,6 +349,7 @@ public class SegariRoute {
 
     private List<ArrayList<Long>> getResult(RoutingModel routing, RoutingIndexManager manager,
                                                                   Assignment solution) {
+        if (Objects.isNull(solution)) return Collections.emptyList();
         List<ArrayList<Long>> results = new ArrayList<>();
         for (int i = 0; i < this.vehicleNumbers; i++) {
             long index = routing.start(i);

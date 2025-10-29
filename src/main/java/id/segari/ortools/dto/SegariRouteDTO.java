@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
+import java.util.Set;
 
 public record SegariRouteDTO(
         @NotEmpty(groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
@@ -19,7 +20,8 @@ public record SegariRouteDTO(
 
         @NotNull(groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         @Min(value = 1, groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
-        Integer maxOrderCount
+        Integer maxOrderCount,
+        Set<Long> mandatoryOrders
 ) {
     @Override
     public String toString() {
@@ -28,34 +30,5 @@ public record SegariRouteDTO(
                 ", maxTotalDistanceInMeter:" + maxTotalDistanceInMeter +
                 ", maxOrderCount:" + maxOrderCount +
                 '}';
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        private List<SegariRouteOrderDTO> orders;
-        private Integer maxTotalDistanceInMeter;
-        private Integer maxOrderCount;
-
-        public Builder orders(List<SegariRouteOrderDTO> orders) {
-            this.orders = orders;
-            return this;
-        }
-
-        public Builder maxTotalDistanceInMeter(Integer maxTotalDistanceInMeter) {
-            this.maxTotalDistanceInMeter = maxTotalDistanceInMeter;
-            return this;
-        }
-
-        public Builder maxOrderCount(Integer maxOrderCount) {
-            this.maxOrderCount = maxOrderCount;
-            return this;
-        }
-
-        public SegariRouteDTO build() {
-            return new SegariRouteDTO(orders, maxTotalDistanceInMeter, maxOrderCount);
-        }
     }
 }
