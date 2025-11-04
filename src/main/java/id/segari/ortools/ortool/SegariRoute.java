@@ -278,15 +278,15 @@ public class SegariRoute {
                 routing.registerTransitCallback((long fromIndex, long toIndex) -> {
                     int fromNode = manager.indexToNode(fromIndex);
                     int toNode = manager.indexToNode(toIndex);
-                    return distanceMatrix[fromNode][toNode];
+                    return durationMatrix[fromNode][toNode];
                 });
         routing.addDimension(transitCallbackIndex, 120, 86400,
                 false,
-                "TimeWindow");
+                "Time");
 
-        RoutingDimension timeDimension = routing.getMutableDimension("TimeWindow");
+        RoutingDimension timeDimension = routing.getMutableDimension("Time");
 
-        for (int i = 0; i < durationMatrix.length; i++) {
+        for (int i = determineStartFromVrpType(); i < durationMatrix.length; i++) {
             long index = manager.nodeToIndex(i);
             timeDimension.cumulVar(index).setRange(
                     this.timeWindows[i][0],
