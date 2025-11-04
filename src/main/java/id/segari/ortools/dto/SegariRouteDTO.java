@@ -21,7 +21,8 @@ public record SegariRouteDTO(
         @NotNull(groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         @Min(value = 1, groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         Integer maxOrderCount,
-        Set<Long> mandatoryOrders
+        Set<Long> mandatoryOrders,
+        boolean useTimeWindow
 ) {
     @Override
     public String toString() {

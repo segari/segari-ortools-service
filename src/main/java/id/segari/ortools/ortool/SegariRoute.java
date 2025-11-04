@@ -14,7 +14,6 @@ import id.segari.ortools.util.GeoUtils;
 import org.springframework.http.HttpStatus;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class SegariRoute {
     private final SegariRouteType type;
@@ -49,10 +48,11 @@ public class SegariRoute {
     private boolean hasLoadFactorDimension = false;
     private boolean hasExtensionTurboInstanRatioDimension = false;
     private boolean hasSetResultMinimum = false;
-    private boolean hasMandatoryOrdersDimension = false;
+    private boolean hasTimeWindowDimension = false;
     private int minimumResult = 0;
     private boolean hasResultMustContainExtension = false;
     private long[][] distanceMatrix;
+    private long[][] durationMatrix;
     private int[] start;
     private int[] finish;
     private int vehicleNumbers;
@@ -66,6 +66,7 @@ public class SegariRoute {
     private long[] loadFactorVehicleCapacities;
     private long[] extensionRatioDemands;
     private long[] extensionRatioVehicleCapacities;
+    private long[][] timeWindows;
     private int maxTotalDistanceInMeter;
     private int maxDistanceBetweenOrderInMeter;
     private int maxDistanceWithSpInMeter;
@@ -89,7 +90,6 @@ public class SegariRoute {
     }
 
     private void setMandatoryOrderIds(Set<Long> mandatoryOrderIds) {
-        this.hasMandatoryOrdersDimension = true;
         this.mandatoryOrderIds.addAll(mandatoryOrderIds);
     }
 
@@ -128,6 +128,9 @@ public class SegariRoute {
         if (Objects.nonNull(dto.mandatoryOrders()) && !dto.mandatoryOrders().isEmpty()){
             segariRoute.setMandatoryOrderIds(dto.mandatoryOrders());
         }
+        if (dto.useTimeWindow()){
+            segariRoute.addTimeWindowDimension(dto);
+        }
         return segariRoute;
     }
 
@@ -158,6 +161,17 @@ public class SegariRoute {
         if (maxDistanceInMeter <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxDistanceInMeter in addDistanceBetweenNodeDimension");
         this.hasDistanceBetweenNodeDimension = true;
         this.maxDistanceBetweenNodeInMeter = maxDistanceInMeter;
+        return this;
+    }
+
+    public SegariRoute addTimeWindowDimension(SegariRouteDTO dto){
+        if (!useOsrm) throw new RuntimeException();
+        this.hasTimeWindowDimension = true;
+        this.timeWindows = new long[dto.orders().size()][2];
+        for (int i = 0; i < dto.orders().size(); i++) {
+            timeWindows[i][0] = 0;
+            timeWindows[i][1] = dto.orders().get(i).maxTimeWindow();
+        }
         return this;
     }
 
@@ -225,6 +239,7 @@ public class SegariRoute {
         RoutingModel routing = new RoutingModel(manager);
         addDistanceDimension(routing, manager);
         addMaxOrderCountDimension(routing, manager);
+        if (this.hasTimeWindowDimension) addTimeWindowDimension(routing, manager);
         if (this.hasExtensionTurboInstanRatioDimension) addExtensionTurboInstanRatioDimension(routing, manager);
         if (this.hasMaxInstanOrderCountDimension) addMaxInstanOrderCountDimension(routing, manager);
         if (this.hasMaxTurboOrderCountDimension) addMaxTurboOrderCountDimension(routing, manager);
@@ -233,6 +248,7 @@ public class SegariRoute {
         Assignment solution = findSolution(routing);
         return getResult(routing, manager, solution);
     }
+
 
     private RoutingIndexManager getRoutingIndexManager() {
         if (this.distanceMatrix.length == 0) throw SegariRoutingErrors.invalidRoutingParameter("distanceMatrix in getRoutingIndexManager");
@@ -255,6 +271,28 @@ public class SegariRoute {
         routing.addDimension(transitCallbackIndex, 0, this.maxTotalDistanceInMeter,
                 true,
                 "Distance");
+    }
+
+    private void addTimeWindowDimension(RoutingModel routing, RoutingIndexManager manager) {
+        final int transitCallbackIndex =
+                routing.registerTransitCallback((long fromIndex, long toIndex) -> {
+                    int fromNode = manager.indexToNode(fromIndex);
+                    int toNode = manager.indexToNode(toIndex);
+                    return distanceMatrix[fromNode][toNode];
+                });
+        routing.addDimension(transitCallbackIndex, 120, 86400,
+                false,
+                "TimeWindow");
+
+        RoutingDimension timeDimension = routing.getMutableDimension("TimeWindow");
+
+        for (int i = 0; i < durationMatrix.length; i++) {
+            long index = manager.nodeToIndex(i);
+            timeDimension.cumulVar(index).setRange(
+                    this.timeWindows[i][0],
+                    this.timeWindows[i][1]
+            );
+        }
     }
 
     private void addMaxOrderCountDimension(RoutingModel routing, RoutingIndexManager manager) {
@@ -385,15 +423,17 @@ public class SegariRoute {
         return results;
     }
 
-    private static void putResult(ArrayList<Long> route, List<ArrayList<Long>> results) {
-        if (route.size() > 1) results.add(route);
+    private void putResult(ArrayList<Long> route, List<ArrayList<Long>> results) {
+        if (route.size() > 1 || SegariRouteType.TSP_SP_START_ARBITRARY_FINISH.equals(type)) results.add(route);
     }
 
     private void fillRequiredAttributes() {
         int startIndex = determineStartFromVrpType();
         int length = this.orders.size();
 
-        this.distanceMatrix = getDistanceMatrix(length);
+        final OSRMTableResponseDTO rawDistanceAndDurationMatrix = getRawDistanceAndDurationMatrix();
+
+        this.distanceMatrix = getDistanceMatrix(length, rawDistanceAndDurationMatrix);
         this.maxOrderVehicleCapacities = initiateVehicleArray(this.vehicleNumbers, this.maxOrderCount);
         this.maxOrderDemands = initiateDemandArray(this.orders.size(), startIndex);
         this.start = getStart();
@@ -408,6 +448,9 @@ public class SegariRoute {
             if (this.hasMaxTurboOrderCountDimension) maxTurboDemands[i] = this.orders.get(i).isTurbo() ? 1 : 0;
             if (this.hasLoadFactorDimension) loadFactorDemands[i] = 0; // TODO - define load factor when possible
             if (this.hasExtensionTurboInstanRatioDimension) extensionRatioDemands[i] = this.orders.get(i).isExtension() ? this.extensionRatio : this.turboInstanRatio;
+        }
+        if(this.hasTimeWindowDimension && this.useOsrm){
+            this.durationMatrix = getDurationMatrix(rawDistanceAndDurationMatrix, length);
         }
         if (this.hasMaxInstanOrderCountDimension) {
             this.maxInstanDemands = maxInstanDemands;
@@ -427,6 +470,31 @@ public class SegariRoute {
         }
     }
 
+    private long[][] getDurationMatrix(OSRMTableResponseDTO rawDistanceAndDurationMatrix, int length) {
+        long[][] durationMatrix = rawDistanceAndDurationMatrix.durations();
+        for (int i = 0; i < length; i++) {
+            for (int j = 0; j < length; j++) {
+                if (isDummyNode(i, j)){
+                    durationMatrix[i][j] = 0;
+                }
+                if (isISpNode(i) && durationMatrix[i][j] > this.timeWindows[j][1]) {
+                    this.timeWindows[j][1] = 43200;
+                }
+            }
+        }
+        return durationMatrix;
+    }
+
+    private OSRMTableResponseDTO getRawDistanceAndDurationMatrix() {
+        if (this.useOsrm){
+            final List<LatLong> latLongs = this.orders.stream()
+                    .map(order -> new LatLong(order.latitude(), order.longitude()))
+                    .toList();
+            return osrmRestService.getDistanceMatrix(latLongs);
+        }
+        return new OSRMTableResponseDTO(new long[0][0], new long[0][0]);
+    }
+
     private int determineRatioCapacity() {
         final int ex = (this.extensionCount >= this.maxOrderCount)
                 ? Math.ceilDiv(this.extensionCount, this.vehicleNumbers)
@@ -442,14 +510,10 @@ public class SegariRoute {
         return capacity;
     }
 
-    private long[][] getDistanceMatrix(int length) {
+    private long[][] getDistanceMatrix(int length, OSRMTableResponseDTO rawDistanceAndDurationMatrix) {
         if (this.useOsrm){
-            final List<LatLong> latLongs = this.orders.stream()
-                    .map(order -> new LatLong(order.latitude(), order.longitude()))
-                    .toList();
-            OSRMTableResponseDTO response = osrmRestService.getDistanceMatrix(latLongs);
-            if (response.distances().length == length) {
-                long[][] distanceMatrix = response.distances();
+            if (rawDistanceAndDurationMatrix.distances().length == length) {
+                long[][] distanceMatrix = rawDistanceAndDurationMatrix.distances();
                 for (int i = 0; i < length; i++) {
                     for (int j = 0; j < length; j++) {
                         if (isDummyNode(i, j)){
@@ -504,6 +568,14 @@ public class SegariRoute {
 
     private boolean isSpNode(int i, int j) {
         return SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(i).type()) || SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(j).type());
+    }
+
+    private boolean isISpNode(int i) {
+        return SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(i).type());
+    }
+
+    private boolean isJSpNode(int j) {
+        return SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(this.orders.get(j).type());
     }
 
     private boolean isDummyNode(int i, int j) {

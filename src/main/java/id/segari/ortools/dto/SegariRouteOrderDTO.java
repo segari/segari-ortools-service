@@ -17,7 +17,8 @@ public record SegariRouteOrderDTO(
         @NotNull(groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         Boolean isTurbo,
         @NotNull(groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
-        Boolean isInstan
+        Boolean isInstan,
+        Long maxTimeWindow
 ) {
     @Override
     public String toString() {
