@@ -23,7 +23,7 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     public RouteResultDTO vrpWithSpStartAndArbitraryFinish(RouteDTO dto) {
-        SegariRoute segariRoute = SegariRoute.newVrpStartFromSpAndArbitraryFinish(dto.route())
+        SegariRoute segariRoute = SegariRoute.newVrpStartFromSpAndArbitraryFinish(dto.route(), osrmRestService)
                 .addDistanceBetweenOrderDimension(dto.maxDistanceBetweenOrder())
                 .addDistanceWithSpDimension(dto.maxDistanceFromSp())
                 .addMaxInstanOrderCountDimension(dto.maxInstanOrderCount())
@@ -40,15 +40,15 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     public RouteResultDTO vrpWithArbitraryStartAndArbitraryFinish(RouteDTO dto) {
-        return new RouteResultDTO(SegariRoute.newVrpWithArbitraryStartAndFinish(dto.route())
-                .addDistanceBetweenNodeDimension(dto.maxDistanceBetweenOrder())
+        SegariRoute segariRoute = SegariRoute.newVrpWithArbitraryStartAndFinish(dto.route(), osrmRestService);
+        return new RouteResultDTO(segariRoute.addDistanceBetweenNodeDimension(dto.maxDistanceBetweenOrder())
                 .setResultMinimum(dto.route().maxOrderCount())
                 .route());
     }
 
     @Override
     public RouteResultDTO tspWithFixStartAndArbitraryFinish(RouteDTO dto, Integer index) {
-        SegariRoute segariRoute = SegariRoute.newTspWithStartAndFinish(dto.route(), index);
+        SegariRoute segariRoute = SegariRoute.newTspWithStartAndFinish(dto.route(), index, osrmRestService);
 
         if (Objects.nonNull(dto.maxDistanceBetweenOrder())) segariRoute.addDistanceBetweenOrderDimension(dto.maxDistanceBetweenOrder());
         if (Objects.nonNull(dto.maxDistanceFromSp())) segariRoute.addDistanceWithSpDimension(dto.maxDistanceFromSp());

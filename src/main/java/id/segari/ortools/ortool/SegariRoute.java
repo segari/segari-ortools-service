@@ -93,28 +93,31 @@ public class SegariRoute {
         this.mandatoryOrderIds.addAll(mandatoryOrderIds);
     }
 
-    public static SegariRoute newVrpStartFromSpAndArbitraryFinish(SegariRouteDTO dto){
+    public static SegariRoute newVrpStartFromSpAndArbitraryFinish(SegariRouteDTO dto, OSRMRestService osrmRestService){
         if (dto.orders().size() <= 2) throw SegariRoutingErrors.emptyOrder();
         if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
         if (!SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(dto.orders().get(1).type())) throw SegariRoutingErrors.indexOneNotSp();
         SegariRoute segariRoute = new SegariRoute(SegariRouteType.VRP_SP_START_ARBITRARY_FINISH, dto.orders());
         injectVrpAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), dto.orders().size() - 2);
+        segariRoute.setOsrmRestService(osrmRestService);
         return segariRoute;
     }
 
-    public static SegariRoute newVrpWithArbitraryStartAndFinish(SegariRouteDTO dto){
+    public static SegariRoute newVrpWithArbitraryStartAndFinish(SegariRouteDTO dto, OSRMRestService osrmRestService){
         if (dto.orders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
         if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
         SegariRoute segariRoute = new SegariRoute(SegariRouteType.VRP_ARBITRARY_START_AND_FINISH, dto.orders());
         injectVrpAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), dto.orders().size() - 1);
+        segariRoute.setOsrmRestService(osrmRestService);
         return segariRoute;
     }
 
-    public static SegariRoute newTspWithStartAndFinish(SegariRouteDTO dto, int startIndex){
+    public static SegariRoute newTspWithStartAndFinish(SegariRouteDTO dto, int startIndex, OSRMRestService osrmRestService){
         if (dto.orders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
         if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
         SegariRoute segariRoute = new SegariRoute(SegariRouteType.TSP_FIX_START_ARBITRARY_FINISH, dto.orders());
         injectTspAttributes(segariRoute, dto.maxTotalDistanceInMeter(), dto.maxOrderCount(), startIndex);
+        segariRoute.setOsrmRestService(osrmRestService);
         return segariRoute;
     }
 
