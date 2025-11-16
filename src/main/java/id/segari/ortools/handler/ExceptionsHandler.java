@@ -15,18 +15,14 @@ public class ExceptionsHandler {
     public ResponseEntity<ResponseDTO<?>> handleException(ConstraintViolationException ex){
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ResponseDTO.builder()
-                        .errors(ex.getMessage())
-                        .build());
+                .body(new ResponseDTO<>(null, ex.getMessage()));
     }
 
     @ExceptionHandler(BaseException.class)
     public ResponseEntity<ResponseDTO<?>> handleException(BaseException ex){
         return ResponseEntity
                 .status(ex.getHttpStatus())
-                .body(ResponseDTO.builder()
-                        .errors(ex.getMessage())
-                        .build());
+                .body(new ResponseDTO<>(null, ex.getMessage()));
     }
 
 }

@@ -9,4 +9,4 @@ RUN mvn clean install -Dmaven.test.skip=true
 FROM eclipse-temurin:21-jre
 COPY --from=build /build/target/*.jar /app/my-app.jar
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/my-app.jar"]
+ENTRYPOINT ["java","-Dspring.profiles.active=production","-jar","/app/my-app.jar"]
