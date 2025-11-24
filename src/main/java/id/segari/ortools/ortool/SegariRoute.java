@@ -380,11 +380,15 @@ public class SegariRoute {
         }
     }
 
-    private static Assignment findSolution(RoutingModel routing) {
+    private Assignment findSolution(RoutingModel routing) {
         RoutingSearchParameters searchParameters =
                 main.defaultRoutingSearchParameters()
                         .toBuilder()
-                        .setFirstSolutionStrategy(FirstSolutionStrategy.Value.PATH_CHEAPEST_ARC)
+                        .setFirstSolutionStrategy(
+                                SegariRouteType.TSP_SP_START_ARBITRARY_FINISH.equals(type)
+                                        ? FirstSolutionStrategy.Value.CHRISTOFIDES
+                                        : FirstSolutionStrategy.Value.PATH_CHEAPEST_ARC
+                                )
                         .setTimeLimit(Duration.newBuilder().setSeconds(60).build())
                         .build();
         return routing.solveWithParameters(searchParameters);
