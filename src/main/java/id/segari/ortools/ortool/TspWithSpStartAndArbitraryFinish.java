@@ -21,8 +21,9 @@ public class TspWithSpStartAndArbitraryFinish {
         if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.route().orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
         if (!SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(dto.route().orders().get(1).type())) throw SegariRoutingErrors.indexOneNotSp();
 
-        if (dto.route().maxTotalDistanceInMeter() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxTotalDistanceInMeter in injectTspAttributes");
-        if (dto.route().maxOrderCount() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxOrderCount in injectTspAttributes");
+        if (dto.route().maxTotalDistanceInMeter() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxTotalDistanceInMeter in run");
+        if (dto.route().maxOrderCount() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxOrderCount in run");
+        if (dto.route().dynamicNonExtensionMaxOrderCount() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("dynamicNonExtensionMaxOrderCount in run");
 
         final List<SegariRouteOrderDTO> orders = dto.route().orders();
         final int startIndex = 1; // SP
@@ -31,7 +32,7 @@ public class TspWithSpStartAndArbitraryFinish {
         final int length = orders.size();
         final int maxTotalDistanceInMeter = dto.route().maxTotalDistanceInMeter();
         final int maxOrderCount = dto.route().maxOrderCount();
-        final int maxNonExtensionCount = 4; // TODO - get from dto
+        final int maxNonExtensionCount = dto.route().dynamicNonExtensionMaxOrderCount();
         final int vehicleNumbers = 1; // TSP only use 1 vehicle number
         final Set<Long> mandatoryOrderIds = CollectionUtils.isEmpty(dto.route().mandatoryOrders())
                 ? Collections.emptySet()
