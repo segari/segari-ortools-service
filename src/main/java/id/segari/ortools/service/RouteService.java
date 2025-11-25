@@ -18,4 +18,5 @@ public interface RouteService {
     @Validated(TspFixStartArbitraryFinish.class)
     RouteResultDTO tspWithFixStartAndArbitraryFinish(@Valid RouteDTO dto, @NotNull Integer index);
     RouteResultDTO tspWithSpStartAndArbitraryFinish(@Valid RouteDTO dto);
+    RouteResultDTO tspWithSpStartAndArbitraryFinishV2(@Valid RouteDTO dto);
 }

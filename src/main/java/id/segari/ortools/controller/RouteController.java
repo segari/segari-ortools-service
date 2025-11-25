@@ -47,4 +47,11 @@ public class RouteController {
         return new ResponseDTO<>(routeService.tspWithSpStartAndArbitraryFinish(request), null);
     }
 
+    @PostMapping("/v2/tsp/sp-start/arbitrary-finish/use-osrm")
+    public ResponseDTO<RouteResultDTO> tsp3(
+            @RequestBody RouteDTO request
+    ){
+        return new ResponseDTO<>(routeService.tspWithSpStartAndArbitraryFinishV2(request), null);
+    }
+
 }
