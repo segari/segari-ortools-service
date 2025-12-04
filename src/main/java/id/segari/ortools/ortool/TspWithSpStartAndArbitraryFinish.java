@@ -188,8 +188,8 @@ public class TspWithSpStartAndArbitraryFinish {
         if (distanceMatrix.length == 0) {
             throw SegariRoutingErrors.invalidRoutingParameter("distanceMatrix");
         }
-        int[] start = arrayOf(VEHICLE_COUNT, SP_INDEX);
-        int[] finish = arrayOf(VEHICLE_COUNT, DUMMY_INDEX);
+        int[] start = arrayOf(SP_INDEX);
+        int[] finish = arrayOf(DUMMY_INDEX);
         return new RoutingIndexManager(distanceMatrix.length, VEHICLE_COUNT, start, finish);
     }
 
@@ -343,8 +343,8 @@ public class TspWithSpStartAndArbitraryFinish {
         return demands;
     }
 
-    private static int[] arrayOf(int length, int value) {
-        int[] array = new int[length];
+    private static int[] arrayOf(int value) {
+        int[] array = new int[TspWithSpStartAndArbitraryFinish.VEHICLE_COUNT];
         Arrays.fill(array, value);
         return array;
     }
