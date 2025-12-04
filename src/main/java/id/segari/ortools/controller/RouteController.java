@@ -1,8 +1,10 @@
 package id.segari.ortools.controller;
 
 import id.segari.ortools.dto.ResponseDTO;
-import id.segari.ortools.dto.RouteDTO;
-import id.segari.ortools.dto.RouteResultDTO;
+import id.segari.ortools.dto.route.v1.RouteDTO;
+import id.segari.ortools.dto.route.v1.RouteResultDTO;
+import id.segari.ortools.dto.route.v2.RouteV2DTO;
+import id.segari.ortools.dto.route.v2.TspResultDTO;
 import id.segari.ortools.service.RouteService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -48,8 +50,8 @@ public class RouteController {
     }
 
     @PostMapping("/v2/tsp/sp-start/arbitrary-finish/use-osrm")
-    public ResponseDTO<RouteResultDTO> tsp3(
-            @RequestBody RouteDTO request
+    public ResponseDTO<TspResultDTO> tsp3(
+            @RequestBody RouteV2DTO request
     ){
         return new ResponseDTO<>(routeService.tspWithSpStartAndArbitraryFinishV2(request), null);
     }

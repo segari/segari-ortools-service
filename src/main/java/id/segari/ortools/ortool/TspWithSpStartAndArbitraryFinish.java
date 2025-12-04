@@ -3,9 +3,10 @@ package id.segari.ortools.ortool;
 import com.google.ortools.Loader;
 import com.google.ortools.constraintsolver.*;
 import com.google.protobuf.Duration;
-import id.segari.ortools.dto.RouteDTO;
-import id.segari.ortools.dto.RouteResultDTO;
-import id.segari.ortools.dto.SegariRouteOrderDTO;
+import id.segari.ortools.dto.route.v2.RouteOrderV2DTO;
+import id.segari.ortools.dto.route.v2.RouteV2DTO;
+import id.segari.ortools.dto.route.v1.SegariRouteOrderDTO;
+import id.segari.ortools.dto.route.v2.TspResultDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
 import id.segari.ortools.external.LatLong;
 import id.segari.ortools.external.OSRMRestService;
@@ -16,269 +17,336 @@ import java.util.*;
 
 public class TspWithSpStartAndArbitraryFinish {
 
-    public static RouteResultDTO run(RouteDTO dto, OSRMRestService osrmRestService) {
-        if (dto.route().orders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
-        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(dto.route().orders().get(0).type())) throw SegariRoutingErrors.indexZeroNotDummy();
-        if (!SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(dto.route().orders().get(1).type())) throw SegariRoutingErrors.indexOneNotSp();
+    // Node indices
+    private static final int DUMMY_INDEX = 0;
+    private static final int SP_INDEX = 1;
+    private static final int ORDER_START_INDEX = 2;
 
-        if (dto.route().maxTotalDistanceInMeter() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxTotalDistanceInMeter in run");
-        if (dto.route().maxOrderCount() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxOrderCount in run");
-        if (dto.route().dynamicNonExtensionMaxOrderCount() <= 0) throw SegariRoutingErrors.invalidRoutingParameter("dynamicNonExtensionMaxOrderCount in run");
+    // TSP configuration
+    private static final int VEHICLE_COUNT = 1;
 
-        final List<SegariRouteOrderDTO> orders = dto.route().orders();
-        final int startIndex = 1; // SP
-        final int finishIndex = 0; // dummy for arbitrary finish
-        final int startOrderIndex = 2; // order start from index 2
-        final int length = orders.size();
-        final int maxTotalDistanceInMeter = dto.route().maxTotalDistanceInMeter();
-        final int maxOrderCount = dto.route().maxOrderCount();
-        final int maxNonExtensionCount = dto.route().dynamicNonExtensionMaxOrderCount();
-        final int vehicleNumbers = 1; // TSP only use 1 vehicle number
-        final Set<Long> mandatoryOrderIds = CollectionUtils.isEmpty(dto.route().mandatoryOrders())
-                ? Collections.emptySet()
-                : dto.route().mandatoryOrders();
-        final long[][] timeWindows = new long[dto.route().orders().size()][2];
-        for (int i = 0; i < dto.route().orders().size(); i++) {
-            timeWindows[i][0] = 0;
-            timeWindows[i][1] = dto.route().orders().get(i).maxTimeWindow();
-        }
-        final int maxDistanceBetweenOrderInMeter = dto.maxDistanceBetweenOrder();
+    // Penalties
+    private static final long DROP_PENALTY = 100_000L;
+    private static final long MANDATORY_PENALTY = 1_000_000_000L;
 
-        final List<LatLong> latLongs = orders.stream()
-                .map(order -> new LatLong(order.latitude(), order.longitude()))
-                .toList();
-        final OSRMTableResponseDTO tableMatrix = osrmRestService.getDistanceMatrix(latLongs);
+    // Time constraints
+    private static final int TIME_SLACK = 120;
+    private static final int MAX_ROUTE_TIME = 86400;
+    private static final int TIME_WINDOW_BYPASS = 43200;
 
-        // distance matrix
-        final long[][] distanceMatrix = tableMatrix.distances();
-        for (int i = 0; i < length; i++) {
-            for (int j = 0; j < length; j++) {
-                if (isDummyNode(i, j, orders)){
-                    distanceMatrix[i][j] = 0;
-                    continue;
-                }
-                // Don't apply maxDistanceBetweenOrder constraint to SP nodes
-                if (isISpNode(i, orders) || isISpNode(j, orders)){
-                    continue;
-                }
-                long basicValue = distanceMatrix[i][j];
-                distanceMatrix[i][j] = basicValue > maxDistanceBetweenOrderInMeter ? maxTotalDistanceInMeter + 1 : basicValue;
-            }
-        }
+    public static TspResultDTO run(RouteV2DTO dto, OSRMRestService osrmRestService) {
+        validateInput(dto);
 
-        // duration matrix
-        long[][] durationMatrix = tableMatrix.durations();
-        for (int i = 0; i < length; i++) {
-            for (int j = 0; j < length; j++) {
-                if (isDummyNode(i, j, orders)){
-                    durationMatrix[i][j] = 0;
-                }
-                if (isISpNode(i, orders) && durationMatrix[i][j] > timeWindows[j][1]) {
-                    timeWindows[j][1] = 43200; // bypass time windows by make it extra large
-                }
-            }
-        }
+        final List<RouteOrderV2DTO> orders = dto.orders();
+        final Set<Long> mandatoryOrderIds = getMandatoryOrderIds(dto);
+        final Set<Integer> extensionOrderIndices = getExtensionOrderIndices(orders);
+        final boolean hasExtensions = !extensionOrderIndices.isEmpty();
 
-        // max order
-        final long[] maxOrderVehicleCapacities = initiateVehicleArray(vehicleNumbers, maxOrderCount);
-        final long[] maxOrderDemands = initiateDemandArray(orders.size(), startOrderIndex);
-        final int[] start = arrayOf(vehicleNumbers, startIndex);
-        final int[] finish = arrayOf(vehicleNumbers, finishIndex);
+        final OSRMTableResponseDTO tableMatrix = fetchTableMatrix(orders, osrmRestService);
+        final long[][] distanceMatrix = preprocessDistanceMatrix(tableMatrix.distances(), orders, dto, hasExtensions);
+        final long[][] timeWindows = initializeTimeWindows(orders);
+        final long[][] durationMatrix = preprocessDurationMatrix(tableMatrix.durations(), orders, timeWindows);
 
-        final RoutingIndexManager manager = getRoutingIndexManager(distanceMatrix, vehicleNumbers, start, finish);
+        final RoutingIndexManager manager = createRoutingManager(distanceMatrix);
         final RoutingModel routing = new RoutingModel(manager);
 
-        addDistanceDimension(routing, manager, maxTotalDistanceInMeter, distanceMatrix);
-        addMaxOrderCountDimension(routing, manager, maxOrderDemands, maxOrderVehicleCapacities, distanceMatrix, vehicleNumbers);
-        addTimeWindowDimension(routing, manager, durationMatrix, timeWindows, startOrderIndex);
+        setupDimensions(routing, manager, orders, distanceMatrix, durationMatrix, timeWindows, extensionOrderIndices, dto, hasExtensions);
+        addPenaltyAndDropVisit(routing, manager, orders, mandatoryOrderIds);
 
-        // Only apply dynamic max order constraint if there are extension orders
-        Set<Integer> extensionOrderIndices = getExtensionOrderIndices(orders, startOrderIndex);
-        if (!extensionOrderIndices.isEmpty()) {
-            addDynamicMaxOrderDimension(routing, manager, orders, startOrderIndex, maxOrderCount, maxNonExtensionCount, finishIndex);
-        }
-
-        addPenaltyAndDropVisit(routing, manager, startOrderIndex, mandatoryOrderIds, orders);
         Assignment solution = findSolution(routing);
-        return new RouteResultDTO(getResult(routing, manager, solution, vehicleNumbers, orders, mandatoryOrderIds));
+        return new TspResultDTO(extractResult(routing, manager, solution, orders, mandatoryOrderIds));
     }
 
-    private static boolean isDummyNode(int i, int j, List<SegariRouteOrderDTO> orders) {
-        return SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(orders.get(i).type()) || SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY.equals(orders.get(j).type());
-    }
+    // ==================== Validation ====================
 
-    private static boolean isISpNode(int i, List<SegariRouteOrderDTO> orders) {
-        return SegariRouteOrderDTO.SegariRouteOrderEnum.SP.equals(orders.get(i).type());
-    }
-
-    private static long[] initiateVehicleArray(long vehicleNumbers, int value) {
-        long[] array = new long[(int) vehicleNumbers];
-        Arrays.fill(array, value);
-        return array;
-    }
-
-    private static long[] initiateDemandArray(int length, int start) {
-        long[] array = new long[length];
-        for (int i = start; i < array.length; i++) {
-            array[i] = 1;
+    private static void validateInput(RouteV2DTO dto) {
+        if (dto.orders().size() <= 1) throw SegariRoutingErrors.emptyOrder();
+        if (!isNodeType(dto.orders().get(DUMMY_INDEX), SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY)) {
+            throw SegariRoutingErrors.indexZeroNotDummy();
         }
-        return array;
+        if (!isNodeType(dto.orders().get(SP_INDEX), SegariRouteOrderDTO.SegariRouteOrderEnum.SP)) {
+            throw SegariRoutingErrors.indexOneNotSp();
+        }
+        if (dto.maxTotalDistanceWithNonExtensionInMeter() <= 0) {
+            throw SegariRoutingErrors.invalidRoutingParameter("maxTotalDistanceWithNonExtensionInMeter");
+        }
+        if (dto.maxTotalDistanceWithExtensionInMeter() <= 0) {
+            throw SegariRoutingErrors.invalidRoutingParameter("maxTotalDistanceWithExtensionInMeter");
+        }
+        if (dto.maxOrderCountWithExtension() <= 0) {
+            throw SegariRoutingErrors.invalidRoutingParameter("maxOrderCountWithExtension");
+        }
+        if (dto.maxOrderCountWithNonExtension() <= 0) {
+            throw SegariRoutingErrors.invalidRoutingParameter("maxOrderCountWithNonExtension");
+        }
+        if (dto.maxOrderCountWithNonExtension() > dto.maxOrderCountWithExtension()) {
+            throw SegariRoutingErrors.invalidRoutingParameter("maxOrderCountWithNonExtension cannot exceed maxOrderCountWithExtension");
+        }
+        if (dto.maxTotalDistanceWithNonExtensionInMeter() > dto.maxTotalDistanceWithExtensionInMeter()) {
+            throw SegariRoutingErrors.invalidRoutingParameter("maxTotalDistanceWithNonExtensionInMeter cannot exceed maxTotalDistanceWithExtensionInMeter");
+        }
+    }
+
+    // ==================== Data Preparation ====================
+
+    private static Set<Long> getMandatoryOrderIds(RouteV2DTO dto) {
+        return CollectionUtils.isEmpty(dto.mandatoryOrders()) ? Collections.emptySet() : dto.mandatoryOrders();
+    }
+
+    private static OSRMTableResponseDTO fetchTableMatrix(List<RouteOrderV2DTO> orders, OSRMRestService osrmRestService) {
+        List<LatLong> latLongs = orders.stream()
+                .map(order -> new LatLong(order.latitude(), order.longitude()))
+                .toList();
+        return osrmRestService.getMatrix(latLongs);
+    }
+
+    private static long[][] initializeTimeWindows(List<RouteOrderV2DTO> orders) {
+        long[][] timeWindows = new long[orders.size()][2];
+        for (int i = 0; i < orders.size(); i++) {
+            timeWindows[i][0] = 0;
+            timeWindows[i][1] = orders.get(i).maxTimeWindow();
+        }
+        return timeWindows;
+    }
+
+    // ==================== Matrix Preprocessing ====================
+
+    private static long[][] preprocessDistanceMatrix(long[][] distanceMatrix, List<RouteOrderV2DTO> orders,
+                                                      RouteV2DTO dto, boolean hasExtensions) {
+        int length = orders.size();
+        int maxDistanceNonExt = dto.maxDistanceBetweenOrderToNonExtensionInMeter();
+        int maxDistanceExt = dto.maxDistanceBetweenOrderToExtensionInMeter();
+        int prohibitiveDistance = (hasExtensions ? dto.maxTotalDistanceWithExtensionInMeter() : dto.maxTotalDistanceWithNonExtensionInMeter()) + 1;
+
+        for (int i = 0; i < length; i++) {
+            for (int j = 0; j < length; j++) {
+                if (isSpecialNode(i, orders) || isSpecialNode(j, orders)) {
+                    if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
+                        distanceMatrix[i][j] = 0;
+                    }
+                    continue;
+                }
+
+                long basicValue = distanceMatrix[i][j];
+                int maxAllowedDistance = (hasExtensions && isExtensionEdge(i, j, orders)) ? maxDistanceExt : maxDistanceNonExt;
+                distanceMatrix[i][j] = basicValue > maxAllowedDistance ? prohibitiveDistance : basicValue;
+            }
+        }
+        return distanceMatrix;
+    }
+
+    private static long[][] preprocessDurationMatrix(long[][] durationMatrix, List<RouteOrderV2DTO> orders, long[][] timeWindows) {
+        int length = orders.size();
+        for (int i = 0; i < length; i++) {
+            for (int j = 0; j < length; j++) {
+                if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
+                    durationMatrix[i][j] = 0;
+                }
+                if (isSpNode(i, orders) && durationMatrix[i][j] > timeWindows[j][1]) {
+                    timeWindows[j][1] = TIME_WINDOW_BYPASS;
+                }
+            }
+        }
+        return durationMatrix;
+    }
+
+    // ==================== Node Type Checking ====================
+
+    private static boolean isNodeType(RouteOrderV2DTO order, SegariRouteOrderDTO.SegariRouteOrderEnum type) {
+        return type.equals(order.type());
+    }
+
+    private static boolean isDummyNode(int index, List<RouteOrderV2DTO> orders) {
+        return isNodeType(orders.get(index), SegariRouteOrderDTO.SegariRouteOrderEnum.DUMMY);
+    }
+
+    private static boolean isSpNode(int index, List<RouteOrderV2DTO> orders) {
+        return isNodeType(orders.get(index), SegariRouteOrderDTO.SegariRouteOrderEnum.SP);
+    }
+
+    private static boolean isSpecialNode(int index, List<RouteOrderV2DTO> orders) {
+        return isDummyNode(index, orders) || isSpNode(index, orders);
+    }
+
+    private static boolean isExtensionEdge(int i, int j, List<RouteOrderV2DTO> orders) {
+        return Boolean.TRUE.equals(orders.get(i).isExtension()) || Boolean.TRUE.equals(orders.get(j).isExtension());
+    }
+
+    private static Set<Integer> getExtensionOrderIndices(List<RouteOrderV2DTO> orders) {
+        Set<Integer> indices = new HashSet<>();
+        for (int i = ORDER_START_INDEX; i < orders.size(); i++) {
+            if (Boolean.TRUE.equals(orders.get(i).isExtension())) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    // ==================== Routing Setup ====================
+
+    private static RoutingIndexManager createRoutingManager(long[][] distanceMatrix) {
+        if (distanceMatrix.length == 0) {
+            throw SegariRoutingErrors.invalidRoutingParameter("distanceMatrix");
+        }
+        int[] start = arrayOf(VEHICLE_COUNT, SP_INDEX);
+        int[] finish = arrayOf(VEHICLE_COUNT, DUMMY_INDEX);
+        return new RoutingIndexManager(distanceMatrix.length, VEHICLE_COUNT, start, finish);
+    }
+
+    private static void setupDimensions(RoutingModel routing, RoutingIndexManager manager,
+                                        List<RouteOrderV2DTO> orders, long[][] distanceMatrix,
+                                        long[][] durationMatrix, long[][] timeWindows,
+                                        Set<Integer> extensionOrderIndices, RouteV2DTO dto, boolean hasExtensions) {
+        long[] orderDemands = createOrderDemands(orders.size());
+
+        if (hasExtensions) {
+            addDistanceDimension(routing, manager, dto.maxTotalDistanceWithExtensionInMeter(), distanceMatrix);
+            addMaxOrderCountDimension(routing, manager, orderDemands, dto.maxOrderCountWithExtension());
+            addNonExtensionCountDimension(routing, manager, extensionOrderIndices, dto.maxOrderCountWithNonExtension());
+            addNonExtensionDistanceDimension(routing, manager, extensionOrderIndices, dto.maxTotalDistanceWithNonExtensionInMeter(), distanceMatrix);
+        } else {
+            addDistanceDimension(routing, manager, dto.maxTotalDistanceWithNonExtensionInMeter(), distanceMatrix);
+            addMaxOrderCountDimension(routing, manager, orderDemands, dto.maxOrderCountWithNonExtension());
+        }
+
+        addTimeWindowDimension(routing, manager, durationMatrix, timeWindows);
+    }
+
+    // ==================== Dimension Methods ====================
+
+    private static void addDistanceDimension(RoutingModel routing, RoutingIndexManager manager,
+                                             int maxTotalDistance, long[][] distanceMatrix) {
+        int callback = routing.registerTransitCallback((fromIndex, toIndex) -> {
+            int fromNode = manager.indexToNode(fromIndex);
+            int toNode = manager.indexToNode(toIndex);
+            return distanceMatrix[fromNode][toNode];
+        });
+        routing.setArcCostEvaluatorOfAllVehicles(callback);
+        routing.addDimension(callback, 0, maxTotalDistance, true, "Distance");
+    }
+
+    private static void addMaxOrderCountDimension(RoutingModel routing, RoutingIndexManager manager,
+                                                   long[] orderDemands, int maxOrderCount) {
+        int callback = routing.registerUnaryTransitCallback(fromIndex -> {
+            int fromNode = manager.indexToNode(fromIndex);
+            return orderDemands[fromNode];
+        });
+        long[] capacities = new long[]{maxOrderCount};
+        routing.addDimensionWithVehicleCapacity(callback, 0, capacities, true, "MaxOrderCount");
+    }
+
+    private static void addNonExtensionCountDimension(RoutingModel routing, RoutingIndexManager manager,
+                                                       Set<Integer> extensionOrderIndices, int maxNonExtensionCount) {
+        int callback = routing.registerUnaryTransitCallback(fromIndex -> {
+            int fromNode = manager.indexToNode(fromIndex);
+            if (fromNode == DUMMY_INDEX || fromNode == SP_INDEX) return 0;
+            return extensionOrderIndices.contains(fromNode) ? 0 : 1;
+        });
+        routing.addDimension(callback, 0, maxNonExtensionCount, true, "NonExtensionCount");
+    }
+
+    private static void addNonExtensionDistanceDimension(RoutingModel routing, RoutingIndexManager manager,
+                                                          Set<Integer> extensionOrderIndices,
+                                                          int maxNonExtensionDistance, long[][] distanceMatrix) {
+        int callback = routing.registerTransitCallback((fromIndex, toIndex) -> {
+            int fromNode = manager.indexToNode(fromIndex);
+            int toNode = manager.indexToNode(toIndex);
+
+            if (fromNode == DUMMY_INDEX || toNode == DUMMY_INDEX) return 0;
+            if (fromNode == SP_INDEX || toNode == SP_INDEX) return 0;
+            if (extensionOrderIndices.contains(fromNode) || extensionOrderIndices.contains(toNode)) return 0;
+
+            return distanceMatrix[fromNode][toNode];
+        });
+        routing.addDimension(callback, 0, maxNonExtensionDistance, true, "NonExtensionDistance");
+    }
+
+    private static void addTimeWindowDimension(RoutingModel routing, RoutingIndexManager manager,
+                                                long[][] durationMatrix, long[][] timeWindows) {
+        int callback = routing.registerTransitCallback((fromIndex, toIndex) -> {
+            int fromNode = manager.indexToNode(fromIndex);
+            int toNode = manager.indexToNode(toIndex);
+            return durationMatrix[fromNode][toNode];
+        });
+        routing.addDimension(callback, TIME_SLACK, MAX_ROUTE_TIME, false, "Time");
+
+        RoutingDimension timeDimension = routing.getMutableDimension("Time");
+        for (int i = ORDER_START_INDEX; i < durationMatrix.length; i++) {
+            long index = manager.nodeToIndex(i);
+            timeDimension.cumulVar(index).setRange(timeWindows[i][0], timeWindows[i][1]);
+        }
+    }
+
+    private static void addPenaltyAndDropVisit(RoutingModel routing, RoutingIndexManager manager,
+                                                List<RouteOrderV2DTO> orders, Set<Long> mandatoryOrderIds) {
+        for (int i = ORDER_START_INDEX; i < orders.size(); i++) {
+            long orderId = orders.get(i).id();
+            long penalty = mandatoryOrderIds.contains(orderId) ? MANDATORY_PENALTY : DROP_PENALTY;
+            routing.addDisjunction(new long[]{manager.nodeToIndex(i)}, penalty);
+        }
+    }
+
+    // ==================== Solution ====================
+
+    private static Assignment findSolution(RoutingModel routing) {
+        RoutingSearchParameters searchParameters = main.defaultRoutingSearchParameters()
+                .toBuilder()
+                .setFirstSolutionStrategy(FirstSolutionStrategy.Value.CHRISTOFIDES)
+                .setTimeLimit(Duration.newBuilder().setSeconds(60).build())
+                .setLogSearch(true)
+                .build();
+        return routing.solveWithParameters(searchParameters);
+    }
+
+    private static List<Long> extractResult(RoutingModel routing, RoutingIndexManager manager,
+                                                        Assignment solution, List<RouteOrderV2DTO> orders,
+                                                        Set<Long> mandatoryOrderIds) {
+        if (Objects.isNull(solution)) return Collections.emptyList();
+
+        List<ArrayList<Long>> results = new ArrayList<>();
+        for (int vehicle = 0; vehicle < VEHICLE_COUNT; vehicle++) {
+            final ArrayList<Long> route = extractVehicleRoute(routing, manager, solution, orders, vehicle);
+            results.add(route);
+        }
+
+        if (!mandatoryOrderIds.isEmpty()) {
+            if (!new HashSet<>(results.getFirst()).containsAll(mandatoryOrderIds)) {
+                return Collections.emptyList();
+            }
+        }
+        return results.getFirst();
+    }
+
+    private static ArrayList<Long> extractVehicleRoute(RoutingModel routing, RoutingIndexManager manager,
+                                                        Assignment solution, List<RouteOrderV2DTO> orders, int vehicle) {
+        ArrayList<Long> route = new ArrayList<>();
+        long index = routing.start(vehicle);
+
+        while (!routing.isEnd(index)) {
+            int nodeIndex = manager.indexToNode(index);
+            long orderId = orders.get(nodeIndex).id();
+            if (orderId != -1L && orderId != -2L) {
+                route.add(orderId);
+            }
+            index = solution.value(routing.nextVar(index));
+        }
+        return route;
+    }
+
+    // ==================== Utility Methods ====================
+
+    private static long[] createOrderDemands(int orderCount) {
+        long[] demands = new long[orderCount];
+        for (int i = ORDER_START_INDEX; i < orderCount; i++) {
+            demands[i] = 1;
+        }
+        return demands;
     }
 
     private static int[] arrayOf(int length, int value) {
         int[] array = new int[length];
         Arrays.fill(array, value);
         return array;
-    }
-
-    private static RoutingIndexManager getRoutingIndexManager(long[][] distanceMatrix, int vehicleNumbers, int[] start, int[] finish) {
-        if (distanceMatrix.length == 0) throw SegariRoutingErrors.invalidRoutingParameter("distanceMatrix in getRoutingIndexManager");
-        if (vehicleNumbers <= 0) throw SegariRoutingErrors.invalidRoutingParameter("vehicleNumbers in getRoutingIndexManager");
-        if (start.length == 0) throw SegariRoutingErrors.invalidRoutingParameter("start in getRoutingIndexManager");
-        if (finish.length == 0) throw SegariRoutingErrors.invalidRoutingParameter("finish in getRoutingIndexManager");
-        return new RoutingIndexManager(distanceMatrix.length, vehicleNumbers, start, finish);
-    }
-
-    private static void addDistanceDimension(RoutingModel routing, RoutingIndexManager manager, int maxTotalDistanceInMeter, long[][] distanceMatrix) {
-        if (maxTotalDistanceInMeter <= 0) throw SegariRoutingErrors.invalidRoutingParameter("maxTotalDistanceInMeter in addDistanceDimension");
-        if (distanceMatrix.length == 0) throw SegariRoutingErrors.invalidRoutingParameter("distanceMatrix in addDistanceDimension");
-        final int transitCallbackIndex =
-                routing.registerTransitCallback((long fromIndex, long toIndex) -> {
-                    int fromNode = manager.indexToNode(fromIndex);
-                    int toNode = manager.indexToNode(toIndex);
-                    return distanceMatrix[fromNode][toNode];
-                });
-        routing.setArcCostEvaluatorOfAllVehicles(transitCallbackIndex);
-        routing.addDimension(transitCallbackIndex, 0, maxTotalDistanceInMeter,
-                true,
-                "Distance");
-    }
-
-    private static void addMaxOrderCountDimension(RoutingModel routing, RoutingIndexManager manager, long[] maxOrderDemands, long[] maxOrderVehicleCapacities, long[][] distanceMatrix, int vehicleNumbers) {
-        if (notEqualToDistanceMatrixLength(maxOrderDemands.length, distanceMatrix)) throw SegariRoutingErrors.invalidRoutingParameter("maxOrderDemands in addMaxOrderCountDimension");
-        if (notEqualToVehicleNumber(maxOrderVehicleCapacities.length, vehicleNumbers)) throw SegariRoutingErrors.invalidRoutingParameter("maxOrderVehicleCapacities in addMaxOrderCountDimension");
-        final int maxOrderCountCallbackIndex = routing.registerUnaryTransitCallback((long fromIndex) -> {
-            int fromNode = manager.indexToNode(fromIndex);
-            return maxOrderDemands[fromNode];
-        });
-        routing.addDimensionWithVehicleCapacity(maxOrderCountCallbackIndex, 0,
-                maxOrderVehicleCapacities,
-                true,
-                "MaxOrderCount");
-    }
-
-    private static boolean notEqualToDistanceMatrixLength(int length, long[][] distanceMatrix) {
-        return length != distanceMatrix.length;
-    }
-
-    private static boolean notEqualToVehicleNumber(int length, int vehicleNumbers) {
-        return length != vehicleNumbers;
-    }
-
-    private static void addTimeWindowDimension(RoutingModel routing, RoutingIndexManager manager, long[][] durationMatrix, long[][] timeWindows, int startOrderIndex) {
-        final int transitCallbackIndex =
-                routing.registerTransitCallback((long fromIndex, long toIndex) -> {
-                    int fromNode = manager.indexToNode(fromIndex);
-                    int toNode = manager.indexToNode(toIndex);
-                    return durationMatrix[fromNode][toNode];
-                });
-        routing.addDimension(transitCallbackIndex, 120, 86400,
-                false,
-                "Time");
-
-        RoutingDimension timeDimension = routing.getMutableDimension("Time");
-
-        for (int i = startOrderIndex; i < durationMatrix.length; i++) {
-            long index = manager.nodeToIndex(i);
-            timeDimension.cumulVar(index).setRange(
-                    timeWindows[i][0],
-                    timeWindows[i][1]
-            );
-        }
-    }
-
-    private static void addDynamicMaxOrderDimension(RoutingModel routing, RoutingIndexManager manager, List<SegariRouteOrderDTO> orders, int startOrderIndex, int maxOrderCount, int maxNonExtensionCount, int finishIndex) {
-        Set<Integer> extensionOrderIndices = getExtensionOrderIndices(orders, startOrderIndex);
-
-        // Extension count
-        int extensionCallback = routing.registerUnaryTransitCallback((long fromIndex) -> {
-            int fromNode = manager.indexToNode(fromIndex);
-            if (fromNode == 0) return 0; // dummy
-            if (fromNode == 1) return 0; // sp
-            return extensionOrderIndices.contains(fromNode) ? 1 : 0;
-        });
-        routing.addDimension(extensionCallback, 0, maxOrderCount, true, "ExtensionCount");
-
-        // Non-extension count
-        int nonExtensionCallback = routing.registerUnaryTransitCallback((long fromIndex) -> {
-            int fromNode = manager.indexToNode(fromIndex);
-            if (fromNode == 0) return 0; // dummy
-            if (fromNode == 1) return 0; // sp
-            return extensionOrderIndices.contains(fromNode) ? 0 : 1;
-        });
-        routing.addDimension(nonExtensionCallback, 0, maxOrderCount, true, "NonExtensionCount");
-
-        // Constraint
-        Solver solver = routing.solver();
-        IntVar extEnd = routing.getMutableDimension("ExtensionCount").cumulVar(routing.end(finishIndex));
-        IntVar nonExtEnd = routing.getMutableDimension("NonExtensionCount").cumulVar(routing.end(finishIndex));
-
-        solver.addConstraint(solver.makeLessOrEqual(nonExtEnd, solver.makeSum(extEnd, maxNonExtensionCount)));
-    }
-
-    private static Set<Integer> getExtensionOrderIndices(List<SegariRouteOrderDTO> orders, int startOrderIndex) {
-        final Set<Integer> extensionOrderIndices = new HashSet<>();
-        for (int i = startOrderIndex; i < orders.size(); i++) {
-            SegariRouteOrderDTO order = orders.get(i);
-            if (order.isExtension()) extensionOrderIndices.add(i);
-        }
-        return extensionOrderIndices;
-    }
-
-    private static void addPenaltyAndDropVisit(RoutingModel routing, RoutingIndexManager manager, int startOrderIndex, Set<Long> mandatoryOrderIds, List<SegariRouteOrderDTO> orders) {
-        long penalty = 100_000;
-        long mandatoryPenalty = 1_000_000_000;
-        for (int i = startOrderIndex; i < orders.size(); ++i) {
-            SegariRouteOrderDTO order = orders.get(i);
-            routing.addDisjunction(new long[] {manager.nodeToIndex(i)}, mandatoryOrderIds.contains(order.id()) ? mandatoryPenalty : penalty);
-        }
-    }
-
-    private static Assignment findSolution(RoutingModel routing) {
-        RoutingSearchParameters searchParameters =
-                main.defaultRoutingSearchParameters()
-                        .toBuilder()
-                        .setFirstSolutionStrategy(FirstSolutionStrategy.Value.CHRISTOFIDES)
-                        .setTimeLimit(Duration.newBuilder().setSeconds(60).build())
-                        .setLogSearch(true)
-                        .build();
-        return routing.solveWithParameters(searchParameters);
-    }
-
-    private static List<ArrayList<Long>> getResult(RoutingModel routing, RoutingIndexManager manager,
-                                                   Assignment solution, int vehicleNumbers, List<SegariRouteOrderDTO> orders, Set<Long> mandatoryOrderIds) {
-        if (Objects.isNull(solution)) return Collections.emptyList();
-        List<ArrayList<Long>> results = new ArrayList<>();
-        for (int i = 0; i < vehicleNumbers; i++) {
-            long index = routing.start(i);
-
-            ArrayList<Long> route = new ArrayList<>();
-            while (!routing.isEnd(index)){
-                final long thisRoute = manager.indexToNode(index);
-                final SegariRouteOrderDTO order = orders.get((int) thisRoute);
-                final long orderId = order.id();
-                if (orderId != -1L && orderId != -2L) route.add(orderId);
-                index = solution.value(routing.nextVar(index));
-            }
-            results.add(route);
-        }
-
-        // Verify all mandatory orders were visited
-        if (!mandatoryOrderIds.isEmpty() && !results.isEmpty()) {
-            if (!new HashSet<>(results.getFirst()).containsAll(mandatoryOrderIds)) return Collections.emptyList();
-        }
-
-        return results;
     }
 
     static {

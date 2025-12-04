@@ -3,8 +3,8 @@ package id.segari.ortools.ortool;
 import com.google.ortools.Loader;
 import com.google.ortools.constraintsolver.*;
 import com.google.protobuf.Duration;
-import id.segari.ortools.dto.SegariRouteDTO;
-import id.segari.ortools.dto.SegariRouteOrderDTO;
+import id.segari.ortools.dto.route.v1.SegariRouteDTO;
+import id.segari.ortools.dto.route.v1.SegariRouteOrderDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
 import id.segari.ortools.exception.BaseException;
 import id.segari.ortools.external.LatLong;
@@ -497,7 +497,7 @@ public class SegariRoute {
             final List<LatLong> latLongs = this.orders.stream()
                     .map(order -> new LatLong(order.latitude(), order.longitude()))
                     .toList();
-            return osrmRestService.getDistanceMatrix(latLongs);
+            return osrmRestService.getMatrix(latLongs);
         }
         return new OSRMTableResponseDTO(new long[0][0], new long[0][0]);
     }

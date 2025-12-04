@@ -1,7 +1,9 @@
 package id.segari.ortools.service.impl;
 
-import id.segari.ortools.dto.RouteDTO;
-import id.segari.ortools.dto.RouteResultDTO;
+import id.segari.ortools.dto.route.v1.RouteDTO;
+import id.segari.ortools.dto.route.v1.RouteResultDTO;
+import id.segari.ortools.dto.route.v2.RouteV2DTO;
+import id.segari.ortools.dto.route.v2.TspResultDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
 import id.segari.ortools.external.OSRMRestService;
 import id.segari.ortools.ortool.SegariRoute;
@@ -69,7 +71,7 @@ public class RouteServiceImpl implements RouteService {
     }
 
     @Override
-    public RouteResultDTO tspWithSpStartAndArbitraryFinishV2(RouteDTO dto) {
+    public TspResultDTO tspWithSpStartAndArbitraryFinishV2(RouteV2DTO dto) {
         return TspWithSpStartAndArbitraryFinish.run(dto, osrmRestService);
     }
 }
