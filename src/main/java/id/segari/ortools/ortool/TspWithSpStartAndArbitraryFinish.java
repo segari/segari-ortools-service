@@ -314,7 +314,7 @@ public class TspWithSpStartAndArbitraryFinish {
                 return Collections.emptyList();
             }
         }
-        return results.getFirst();
+        return results.isEmpty() ? Collections.emptyList() : results.getFirst();
     }
 
     private static ArrayList<Long> extractVehicleRoute(RoutingModel routing, RoutingIndexManager manager,
