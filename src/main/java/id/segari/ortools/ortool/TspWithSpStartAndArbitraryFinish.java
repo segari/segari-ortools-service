@@ -253,7 +253,6 @@ public class TspWithSpStartAndArbitraryFinish {
             int toNode = manager.indexToNode(toIndex);
 
             if (fromNode == DUMMY_INDEX || toNode == DUMMY_INDEX) return 0;
-            if (fromNode == SP_INDEX || toNode == SP_INDEX) return 0;
             if (extensionOrderIndices.contains(fromNode) || extensionOrderIndices.contains(toNode)) return 0;
 
             return distanceMatrix[fromNode][toNode];
@@ -293,7 +292,6 @@ public class TspWithSpStartAndArbitraryFinish {
                 .toBuilder()
                 .setFirstSolutionStrategy(FirstSolutionStrategy.Value.CHRISTOFIDES)
                 .setTimeLimit(Duration.newBuilder().setSeconds(60).build())
-                .setLogSearch(true)
                 .build();
         return routing.solveWithParameters(searchParameters);
     }
