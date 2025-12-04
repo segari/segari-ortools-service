@@ -1,10 +1,13 @@
 package id.segari.ortools.service.impl;
 
-import id.segari.ortools.dto.RouteDTO;
-import id.segari.ortools.dto.RouteResultDTO;
+import id.segari.ortools.dto.route.v1.RouteDTO;
+import id.segari.ortools.dto.route.v1.RouteResultDTO;
+import id.segari.ortools.dto.route.v2.RouteV2DTO;
+import id.segari.ortools.dto.route.v2.TspResultDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
 import id.segari.ortools.external.OSRMRestService;
 import id.segari.ortools.ortool.SegariRoute;
+import id.segari.ortools.ortool.TspWithSpStartAndArbitraryFinish;
 import id.segari.ortools.service.RouteService;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -65,5 +68,10 @@ public class RouteServiceImpl implements RouteService {
         segariRoute.addDistanceWithSpDimension(Integer.MAX_VALUE);
 
         return new RouteResultDTO(segariRoute.route());
+    }
+
+    @Override
+    public TspResultDTO tspWithSpStartAndArbitraryFinishV2(RouteV2DTO dto) {
+        return TspWithSpStartAndArbitraryFinish.run(dto, osrmRestService);
     }
 }

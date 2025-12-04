@@ -9,5 +9,5 @@ public interface OSRMRestService {
      * @param locations List of latitude/longitude coordinates
      * @return Distance and duration matrices
      */
-    OSRMTableResponseDTO getDistanceMatrix(List<LatLong> locations);
+    OSRMTableResponseDTO getMatrix(List<LatLong> locations);
 }

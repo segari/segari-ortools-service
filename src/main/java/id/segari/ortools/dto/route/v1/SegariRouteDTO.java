@@ -1,4 +1,4 @@
-package id.segari.ortools.dto;
+package id.segari.ortools.dto.route.v1;
 
 import id.segari.ortools.validation.group.TspFixStartArbitraryFinish;
 import id.segari.ortools.validation.group.VrpArbitraryStartArbitraryFinish;
@@ -17,12 +17,14 @@ public record SegariRouteDTO(
         @NotNull(groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         @Min(value = 1, groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         Integer maxTotalDistanceInMeter,
+        Integer maxTotalDistanceWithExtensionInMeter,
 
         @NotNull(groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         @Min(value = 1, groups = {VrpSpStartArbitraryFinish.class, VrpArbitraryStartArbitraryFinish.class, TspFixStartArbitraryFinish.class})
         Integer maxOrderCount,
         Set<Long> mandatoryOrders,
-        boolean useTimeWindow
+        boolean useTimeWindow,
+        int dynamicNonExtensionMaxOrderCount
 ) {
     @Override
     public String toString() {

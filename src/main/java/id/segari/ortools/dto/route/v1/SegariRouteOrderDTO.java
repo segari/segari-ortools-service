@@ -1,4 +1,4 @@
-package id.segari.ortools.dto;
+package id.segari.ortools.dto.route.v1;
 
 import id.segari.ortools.validation.group.TspFixStartArbitraryFinish;
 import id.segari.ortools.validation.group.VrpArbitraryStartArbitraryFinish;
