@@ -11,7 +11,6 @@ public record RouteV2DTO(
         Integer maxOrderCountWithExtension,
         Integer maxOrderCountWithNonExtension,
         Set<Long> mandatoryOrders,
-        boolean useTimeWindow,
         List<RouteOrderV2DTO> orders
 ) {
 }
