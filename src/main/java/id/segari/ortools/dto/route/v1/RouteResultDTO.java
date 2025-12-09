@@ -1,4 +1,4 @@
-package id.segari.ortools.dto;
+package id.segari.ortools.dto.route.v1;
 
 import java.util.ArrayList;
 import java.util.List;

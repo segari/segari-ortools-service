@@ -18,7 +18,7 @@ public class OSRMRestServiceImpl implements OSRMRestService {
     }
 
     @Override
-    public OSRMTableResponseDTO getDistanceMatrix(List<LatLong> locations) {
+    public OSRMTableResponseDTO getMatrix(List<LatLong> locations) {
         // Build coordinates string: lon1,lat1;lon2,lat2;...
         String coordinates = locations.stream()
                 .map(loc -> loc.longitude() + "," + loc.latitude())
