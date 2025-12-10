@@ -34,3 +34,6 @@ build/
 
 ## java version ##
 .java-version
+
+## docs ##
+docs/
