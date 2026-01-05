@@ -67,4 +67,28 @@ public class SegariRoutingErrors {
                 .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .build();
     }
+
+    public static BaseException osrmNullResponse() {
+        return BaseException.builder()
+                .message("OSRM API returned null response")
+                .errorCode("OSRM_NULL_RESPONSE")
+                .httpStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                .build();
+    }
+
+    public static BaseException osrmApiError(String statusCode) {
+        return BaseException.builder()
+                .message("OSRM API error: " + statusCode)
+                .errorCode("OSRM_API_ERROR")
+                .httpStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                .build();
+    }
+
+    public static BaseException osrmInvalidResponse(String code) {
+        return BaseException.builder()
+                .message("OSRM returned non-OK response: " + code)
+                .errorCode("OSRM_INVALID_RESPONSE")
+                .httpStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                .build();
+    }
 }
