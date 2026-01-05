@@ -15,6 +15,8 @@ import java.util.*;
 
 public class TspWithSpStartAndArbitraryFinishV2 extends BaseTspWithSpStartAndArbitraryFinish {
 
+    protected static final int GLOBAL_SPAN_COST_COEFFICIENT = 100;
+
     public static TspResultDTO run(RouteV3DTO dto, OSRMRestService osrmRestService) {
         validateInput(dto);
 
@@ -167,5 +169,8 @@ public class TspWithSpStartAndArbitraryFinishV2 extends BaseTspWithSpStartAndArb
             long index = manager.nodeToIndex(i);
             timeDimension.cumulVar(index).setRange(timeWindows[i][0], timeWindows[i][1]);
         }
+
+        // Minimize time span to prioritize orders with tighter deadlines first
+        timeDimension.setGlobalSpanCostCoefficient(GLOBAL_SPAN_COST_COEFFICIENT);
     }
 }
