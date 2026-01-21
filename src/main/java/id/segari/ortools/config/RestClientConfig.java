@@ -1,5 +1,6 @@
 package id.segari.ortools.config;
 
+import id.segari.ortools.error.SegariRoutingErrors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +32,7 @@ public class RestClientConfig {
                 .defaultStatusHandler(
                         status -> status.is4xxClientError() || status.is5xxServerError(),
                         (request, response) -> {
-                            throw new RuntimeException("OSRM API error: " + response.getStatusCode());
+                            throw SegariRoutingErrors.osrmApiError(response.getStatusCode().toString());
                         }
                 )
                 .build();

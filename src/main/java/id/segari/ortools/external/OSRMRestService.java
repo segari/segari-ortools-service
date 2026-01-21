@@ -10,4 +10,5 @@ public interface OSRMRestService {
      * @return Distance and duration matrices
      */
     OSRMTableResponseDTO getMatrix(List<LatLong> locations);
+    OSRMTableResponseDTO getMatrixWithScaleFactor(List<LatLong> locations, double scaleFactor);
 }
