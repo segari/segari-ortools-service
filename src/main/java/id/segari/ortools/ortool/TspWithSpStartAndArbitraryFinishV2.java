@@ -171,6 +171,6 @@ public class TspWithSpStartAndArbitraryFinishV2 extends BaseTspWithSpStartAndArb
         }
 
         // Minimize time span to prioritize orders with tighter deadlines first
-        timeDimension.setGlobalSpanCostCoefficient(GLOBAL_SPAN_COST_COEFFICIENT);
+//        timeDimension.setGlobalSpanCostCoefficient(GLOBAL_SPAN_COST_COEFFICIENT);
     }
 }
