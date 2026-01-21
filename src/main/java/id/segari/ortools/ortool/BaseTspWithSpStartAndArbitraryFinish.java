@@ -39,6 +39,10 @@ public abstract class BaseTspWithSpStartAndArbitraryFinish {
         return isNodeType(orders.get(index), SegariRouteOrderDTO.SegariRouteOrderEnum.SP);
     }
 
+    protected static boolean isOrderNode(int index, List<RouteOrderV2DTO> orders) {
+        return isNodeType(orders.get(index), SegariRouteOrderDTO.SegariRouteOrderEnum.ORDER);
+    }
+
     protected static boolean isSpecialNode(int index, List<RouteOrderV2DTO> orders) {
         return isDummyNode(index, orders) || isSpNode(index, orders);
     }

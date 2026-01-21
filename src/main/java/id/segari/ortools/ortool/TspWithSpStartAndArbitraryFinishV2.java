@@ -122,9 +122,13 @@ public class TspWithSpStartAndArbitraryFinishV2 extends BaseTspWithSpStartAndArb
             for (int j = 0; j < length; j++) {
                 if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
                     durationMatrix[i][j] = 0;
+                    continue;
                 }
-                if (isSpNode(i, orders) && !isDummyNode(j, orders)) {
+                if (isSpNode(i, orders) && isOrderNode(j, orders)) {
                     durationMatrix[i][j] += dto.overheadTimeInSecond();
+                }
+                if (isOrderNode(i, orders) && isOrderNode(j, orders) && i != j) {
+                    durationMatrix[i][j] += dto.slackTimeInSecond();
                 }
                 if (isSpNode(i, orders) && durationMatrix[i][j] > timeWindows[j][1]) {
                     timeWindows[j][1] = TIME_WINDOW_BYPASS;
@@ -162,7 +166,7 @@ public class TspWithSpStartAndArbitraryFinishV2 extends BaseTspWithSpStartAndArb
             int toNode = manager.indexToNode(toIndex);
             return durationMatrix[fromNode][toNode];
         });
-        routing.addDimension(callback, dto.slackTimeInSecond(), MAX_ROUTE_TIME, false, "Time");
+        routing.addDimension(callback, 0, MAX_ROUTE_TIME, false, "Time");
 
         RoutingDimension timeDimension = routing.getMutableDimension("Time");
         for (int i = ORDER_START_INDEX; i < durationMatrix.length; i++) {
