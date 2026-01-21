@@ -20,7 +20,7 @@ public abstract class BaseTspWithSpStartAndArbitraryFinish {
     protected static final int VEHICLE_COUNT = 1;
 
     protected static final long DROP_PENALTY = 1_000_000L;
-    protected static final long MANDATORY_PENALTY = 1000_000_000L;
+    protected static final long MANDATORY_PENALTY = 1_000_000_000L;
 
     protected static final int MAX_ROUTE_TIME = 86400;
     protected static final int TIME_WINDOW_BYPASS = 43200;
