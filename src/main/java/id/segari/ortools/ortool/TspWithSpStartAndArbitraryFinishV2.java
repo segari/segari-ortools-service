@@ -122,11 +122,12 @@ public class TspWithSpStartAndArbitraryFinishV2 extends BaseTspWithSpStartAndArb
             for (int j = 0; j < length; j++) {
                 if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
                     durationMatrix[i][j] = 0;
+                    continue;
                 }
-                if (isSpNode(i, orders) && !isDummyNode(j, orders)) {
+                if (isSpNode(i, orders) && isOrderNode(j, orders)) {
                     durationMatrix[i][j] += dto.overheadTimeInSecond();
                 }
-                if (isOrderNode(i, orders) && !isDummyNode(j, orders)) {
+                if (isOrderNode(i, orders) && isOrderNode(j, orders) && i != j) {
                     durationMatrix[i][j] += dto.slackTimeInSecond();
                 }
                 if (isSpNode(i, orders) && durationMatrix[i][j] > timeWindows[j][1]) {
