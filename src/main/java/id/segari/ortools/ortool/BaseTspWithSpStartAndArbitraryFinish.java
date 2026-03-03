@@ -142,10 +142,10 @@ public abstract class BaseTspWithSpStartAndArbitraryFinish {
 
     // ==================== Solution ====================
 
-    protected static Assignment findSolution(RoutingModel routing) {
+    protected static Assignment findSolution(RoutingModel routing, FirstSolutionStrategy.Value strategy) {
         RoutingSearchParameters searchParameters = main.defaultRoutingSearchParameters()
                 .toBuilder()
-                .setFirstSolutionStrategy(FirstSolutionStrategy.Value.CHRISTOFIDES)
+                .setFirstSolutionStrategy(strategy)
                 .setTimeLimit(Duration.newBuilder().setSeconds(60).build())
                 .build();
         return routing.solveWithParameters(searchParameters);

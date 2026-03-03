@@ -5,11 +5,14 @@ import id.segari.ortools.dto.route.v1.RouteResultDTO;
 import id.segari.ortools.dto.route.v2.RouteV2DTO;
 import id.segari.ortools.dto.route.v2.TspResultDTO;
 import id.segari.ortools.dto.route.v3.RouteV3DTO;
+import id.segari.ortools.dto.route.v4.RouteV4DTO;
+import id.segari.ortools.dto.route.v4.VrpResultDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
 import id.segari.ortools.external.OSRMRestService;
 import id.segari.ortools.ortool.SegariRoute;
 import id.segari.ortools.ortool.TspWithSpStartAndArbitraryFinish;
 import id.segari.ortools.ortool.TspWithSpStartAndArbitraryFinishV2;
+import id.segari.ortools.ortool.VrpWithSpStartAndArbitraryFinish;
 import id.segari.ortools.service.RouteService;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -80,5 +83,10 @@ public class RouteServiceImpl implements RouteService {
     @Override
     public TspResultDTO tspWithSpStartAndArbitraryFinishV3(RouteV3DTO dto) {
         return TspWithSpStartAndArbitraryFinishV2.run(dto, osrmRestService);
+    }
+
+    @Override
+    public VrpResultDTO vrpWithSpStartAndArbitraryFinishV2(RouteV4DTO dto) {
+        return VrpWithSpStartAndArbitraryFinish.run(dto, osrmRestService);
     }
 }

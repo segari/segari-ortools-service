@@ -36,7 +36,7 @@ public class TspWithSpStartAndArbitraryFinishV2 extends BaseTspWithSpStartAndArb
         setupDimensions(routing, manager, orders, distanceMatrix, durationMatrix, timeWindows, extensionOrderIndices, dto, hasExtensions);
         addPenaltyAndDropVisit(routing, manager, orders, mandatoryOrderIds);
 
-        Assignment solution = findSolution(routing);
+        Assignment solution = findSolution(routing, FirstSolutionStrategy.Value.CHRISTOFIDES);
         return new TspResultDTO(extractResult(routing, manager, solution, orders, mandatoryOrderIds));
     }
 
