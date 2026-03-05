@@ -1,6 +1,7 @@
 package id.segari.ortools.controller;
 
 import id.segari.ortools.dto.ResponseDTO;
+import id.segari.ortools.dto.route.simple.RouteSimpleDTO;
 import id.segari.ortools.dto.route.v1.RouteDTO;
 import id.segari.ortools.dto.route.v1.RouteResultDTO;
 import id.segari.ortools.dto.route.v2.RouteV2DTO;
@@ -71,6 +72,13 @@ public class RouteController {
             @RequestBody RouteV4DTO request
     ){
         return new ResponseDTO<>(routeService.vrpWithSpStartAndArbitraryFinishV2(request), null);
+    }
+
+    @PostMapping("/v4/vrp/sp-start/arbitrary-finish/use-osrm")
+    public ResponseDTO<TspResultDTO> vrpSimple(
+            @RequestBody RouteSimpleDTO request
+    ){
+        return new ResponseDTO<>(routeService.tspWithSpStartAndArbitraryFinishSimple(request), null);
     }
 
 }
