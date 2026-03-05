@@ -74,7 +74,7 @@ public class RouteController {
         return new ResponseDTO<>(routeService.vrpWithSpStartAndArbitraryFinishV2(request), null);
     }
 
-    @PostMapping("/v4/vrp/sp-start/arbitrary-finish/use-osrm")
+    @PostMapping("/v4/tsp/sp-start/arbitrary-finish/use-osrm")
     public ResponseDTO<TspResultDTO> vrpSimple(
             @RequestBody RouteSimpleDTO request
     ){
