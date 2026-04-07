@@ -1,10 +1,13 @@
 package id.segari.ortools.service;
 
+import id.segari.ortools.dto.route.simple.RouteSimpleDTO;
 import id.segari.ortools.dto.route.v1.RouteDTO;
 import id.segari.ortools.dto.route.v1.RouteResultDTO;
 import id.segari.ortools.dto.route.v2.RouteV2DTO;
 import id.segari.ortools.dto.route.v2.TspResultDTO;
 import id.segari.ortools.dto.route.v3.RouteV3DTO;
+import id.segari.ortools.dto.route.v4.RouteV4DTO;
+import id.segari.ortools.dto.route.v4.VrpResultDTO;
 import id.segari.ortools.validation.group.TspFixStartArbitraryFinish;
 import id.segari.ortools.validation.group.VrpArbitraryStartArbitraryFinish;
 import id.segari.ortools.validation.group.VrpSpStartArbitraryFinish;
@@ -23,4 +26,6 @@ public interface RouteService {
     RouteResultDTO tspWithSpStartAndArbitraryFinish(@Valid RouteDTO dto);
     TspResultDTO tspWithSpStartAndArbitraryFinishV2(@Valid RouteV2DTO dto);
     TspResultDTO tspWithSpStartAndArbitraryFinishV3(@Valid RouteV3DTO dto);
+    VrpResultDTO vrpWithSpStartAndArbitraryFinishV2(@Valid RouteV4DTO dto);
+    TspResultDTO tspWithSpStartAndArbitraryFinishSimple(@Valid RouteSimpleDTO dto);
 }
