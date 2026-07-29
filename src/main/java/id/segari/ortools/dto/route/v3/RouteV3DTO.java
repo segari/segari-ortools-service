@@ -1,5 +1,6 @@
 package id.segari.ortools.dto.route.v3;
 
+import id.segari.ortools.dto.route.RoutePreprocessingParams;
 import id.segari.ortools.dto.route.v2.RouteOrderV2DTO;
 
 import java.util.List;
@@ -17,5 +18,5 @@ public record RouteV3DTO(
         Integer overheadTimeInSecond,
         Integer slackTimeInSecond,
         List<RouteOrderV2DTO> orders
-) {
+) implements RoutePreprocessingParams {
 }
