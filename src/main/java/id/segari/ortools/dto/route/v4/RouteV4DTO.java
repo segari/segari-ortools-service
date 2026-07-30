@@ -1,5 +1,6 @@
 package id.segari.ortools.dto.route.v4;
 
+import id.segari.ortools.dto.route.RoutePreprocessingParams;
 import id.segari.ortools.dto.route.v2.RouteOrderV2DTO;
 
 import java.util.List;
@@ -18,5 +19,5 @@ public record RouteV4DTO(
         Integer vehicleNumber,
         Integer vehicleWithExtensionNumber,
         List<RouteOrderV2DTO> orders
-) {
+) implements RoutePreprocessingParams {
 }

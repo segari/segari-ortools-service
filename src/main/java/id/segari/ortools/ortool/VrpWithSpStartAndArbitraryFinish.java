@@ -6,14 +6,17 @@ import id.segari.ortools.dto.route.v2.RouteOrderV2DTO;
 import id.segari.ortools.dto.route.v4.RouteV4DTO;
 import id.segari.ortools.dto.route.v4.VrpResultDTO;
 import id.segari.ortools.error.SegariRoutingErrors;
-import id.segari.ortools.external.LatLong;
 import id.segari.ortools.external.OSRMRestService;
 import id.segari.ortools.external.OSRMTableResponseDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.IntStream;
 
 public class VrpWithSpStartAndArbitraryFinish extends BaseTspWithSpStartAndArbitraryFinish {
+
+    private static final Logger log = LoggerFactory.getLogger(VrpWithSpStartAndArbitraryFinish.class);
 
     private static final int GLOBAL_SPAN_COST_COEFFICIENT = 100;
 
@@ -27,6 +30,7 @@ public class VrpWithSpStartAndArbitraryFinish extends BaseTspWithSpStartAndArbit
         final int vehicleWithExtensionNumber = dto.vehicleWithExtensionNumber();
 
         final OSRMTableResponseDTO tableMatrix = fetchTableMatrix(dto, osrmRestService);
+        warnUnreachableOrders(log, orders, tableMatrix.distances(), tableMatrix.durations());
         final long[][] distanceMatrix = preprocessDistanceMatrix(tableMatrix.distances(), orders, dto, hasExtensions);
         final long[][] timeWindows = initializeTimeWindows(orders);
         final long[][] durationMatrix = preprocessDurationMatrix(tableMatrix.durations(), orders, timeWindows, dto);
@@ -97,64 +101,6 @@ public class VrpWithSpStartAndArbitraryFinish extends BaseTspWithSpStartAndArbit
         if (dto.vehicleWithExtensionNumber() > dto.vehicleNumber()) {
             throw SegariRoutingErrors.invalidRoutingParameter("vehicleWithExtensionNumber cannot exceed vehicleNumber");
         }
-    }
-
-    // ==================== Data Preparation ====================
-
-    private static OSRMTableResponseDTO fetchTableMatrix(RouteV4DTO dto, OSRMRestService osrmRestService) {
-        List<LatLong> latLongs = dto.orders().stream()
-                .map(order -> new LatLong(order.latitude(), order.longitude()))
-                .toList();
-        return osrmRestService.getMatrixWithScaleFactor(latLongs, dto.scaleFactor());
-    }
-
-    // ==================== Matrix Preprocessing ====================
-
-    private static long[][] preprocessDistanceMatrix(long[][] distanceMatrix, List<RouteOrderV2DTO> orders,
-                                                     RouteV4DTO dto, boolean hasExtensions) {
-        int length = orders.size();
-        int maxDistanceNonExt = dto.maxDistanceBetweenOrderToNonExtensionInMeter();
-        int maxDistanceExt = dto.maxDistanceBetweenOrderToExtensionInMeter();
-        int prohibitiveDistance = (hasExtensions ? dto.maxTotalDistanceWithExtensionInMeter() : dto.maxTotalDistanceWithNonExtensionInMeter()) + 1;
-
-        for (int i = 0; i < length; i++) {
-            for (int j = 0; j < length; j++) {
-                if (isSpecialNode(i, orders) || isSpecialNode(j, orders)) {
-                    if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
-                        distanceMatrix[i][j] = 0;
-                    }
-                    continue;
-                }
-
-                long basicValue = distanceMatrix[i][j];
-                int maxAllowedDistance = (hasExtensions && isExtensionEdge(i, j, orders)) ? maxDistanceExt : maxDistanceNonExt;
-                distanceMatrix[i][j] = basicValue > maxAllowedDistance ? prohibitiveDistance : basicValue;
-            }
-        }
-        return distanceMatrix;
-    }
-
-    private static long[][] preprocessDurationMatrix(long[][] durationMatrix, List<RouteOrderV2DTO> orders,
-                                                     long[][] timeWindows, RouteV4DTO dto) {
-        int length = orders.size();
-        for (int i = 0; i < length; i++) {
-            for (int j = 0; j < length; j++) {
-                if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
-                    durationMatrix[i][j] = 0;
-                    continue;
-                }
-                if (isSpNode(i, orders) && isOrderNode(j, orders)) {
-                    durationMatrix[i][j] += dto.overheadTimeInSecond();
-                }
-                if (isOrderNode(i, orders) && isOrderNode(j, orders) && i != j) {
-                    durationMatrix[i][j] += dto.slackTimeInSecond();
-                }
-                if (isSpNode(i, orders) && durationMatrix[i][j] > timeWindows[j][1]) {
-                    timeWindows[j][1] = TIME_WINDOW_BYPASS;
-                }
-            }
-        }
-        return durationMatrix;
     }
 
     // ==================== Dimensions Setup ====================

@@ -3,9 +3,14 @@ package id.segari.ortools.ortool;
 import com.google.ortools.Loader;
 import com.google.ortools.constraintsolver.*;
 import com.google.protobuf.Duration;
+import id.segari.ortools.dto.route.RoutePreprocessingParams;
 import id.segari.ortools.dto.route.v1.SegariRouteOrderDTO;
 import id.segari.ortools.dto.route.v2.RouteOrderV2DTO;
 import id.segari.ortools.error.SegariRoutingErrors;
+import id.segari.ortools.external.LatLong;
+import id.segari.ortools.external.OSRMRestService;
+import id.segari.ortools.external.OSRMTableResponseDTO;
+import org.slf4j.Logger;
 
 import java.util.*;
 
@@ -51,6 +56,59 @@ public abstract class BaseTspWithSpStartAndArbitraryFinish {
         return Boolean.TRUE.equals(orders.get(i).isExtension()) || Boolean.TRUE.equals(orders.get(j).isExtension());
     }
 
+    /**
+     * True when OSRM could not route this cell. Values keep their {@link OSRMRestService#UNREACHABLE}
+     * magnitude after overhead/slack are added, so compare with {@code >=}.
+     */
+    protected static boolean isUnreachable(long osrmValue) {
+        return osrmValue >= OSRMRestService.UNREACHABLE;
+    }
+
+    /**
+     * Whether an order-to-order edge must be replaced by a prohibitive distance.
+     * <p>
+     * Besides the configured cap, a zero distance between two <em>distinct</em> coordinates is
+     * rejected: that cannot happen on a real road network, so it means the value was defaulted or is
+     * garbage. Left as-is it would be the cheapest possible arc and would pass every cap.
+     * Two orders at the very same coordinate legitimately measure zero and stay batchable.
+     */
+    protected static boolean isForbiddenOrderEdge(int i, int j, long distance, int maxAllowedDistance,
+                                                  List<RouteOrderV2DTO> orders) {
+        if (i == j) return false;
+        if (distance > maxAllowedDistance) return true;
+        return distance == 0 && !isSameCoordinate(orders.get(i), orders.get(j));
+    }
+
+    protected static boolean isSameCoordinate(RouteOrderV2DTO a, RouteOrderV2DTO b) {
+        return Objects.equals(a.latitude(), b.latitude()) && Objects.equals(a.longitude(), b.longitude());
+    }
+
+    /**
+     * Warns about orders OSRM could not route. Must be called on the raw matrices, before
+     * preprocessing rewrites unreachable cells into prohibitive distances.
+     */
+    protected static void warnUnreachableOrders(Logger log, List<RouteOrderV2DTO> orders,
+                                                long[][] distanceMatrix, long[][] durationMatrix) {
+        List<Long> unreachable = new ArrayList<>();
+        for (int i = ORDER_START_INDEX; i < orders.size(); i++) {
+            if (hasUnreachableEdge(i, distanceMatrix) || hasUnreachableEdge(i, durationMatrix)) {
+                unreachable.add(orders.get(i).id());
+            }
+        }
+        if (!unreachable.isEmpty()) {
+            log.warn("OSRM could not route {} order(s); they will be penalised or dropped: {}",
+                    unreachable.size(), unreachable);
+        }
+    }
+
+    private static boolean hasUnreachableEdge(int node, long[][] matrix) {
+        if (matrix == null || matrix.length <= node) return false;
+        for (int j = 0; j < matrix.length; j++) {
+            if (isUnreachable(matrix[node][j]) || isUnreachable(matrix[j][node])) return true;
+        }
+        return false;
+    }
+
     protected static Set<Integer> getExtensionOrderIndices(List<RouteOrderV2DTO> orders) {
         Set<Integer> indices = new HashSet<>();
         for (int i = ORDER_START_INDEX; i < orders.size(); i++) {
@@ -63,6 +121,13 @@ public abstract class BaseTspWithSpStartAndArbitraryFinish {
 
     // ==================== Data Preparation ====================
 
+    protected static OSRMTableResponseDTO fetchTableMatrix(RoutePreprocessingParams dto, OSRMRestService osrmRestService) {
+        List<LatLong> latLongs = dto.orders().stream()
+                .map(order -> new LatLong(order.latitude(), order.longitude()))
+                .toList();
+        return osrmRestService.getMatrixWithScaleFactor(latLongs, dto.scaleFactor());
+    }
+
     protected static long[][] initializeTimeWindows(List<RouteOrderV2DTO> orders) {
         long[][] timeWindows = new long[orders.size()][2];
         for (int i = 0; i < orders.size(); i++) {
@@ -70,6 +135,71 @@ public abstract class BaseTspWithSpStartAndArbitraryFinish {
             timeWindows[i][1] = orders.get(i).maxTimeWindow();
         }
         return timeWindows;
+    }
+
+    // ==================== Matrix Preprocessing ====================
+
+    /**
+     * Rewrites every order-to-order edge that breaches its cap into a prohibitive distance, so the
+     * distance dimension rejects it. DUMMY edges are zeroed; SP edges are left untouched.
+     */
+    protected static long[][] preprocessDistanceMatrix(long[][] distanceMatrix, List<RouteOrderV2DTO> orders,
+                                                       RoutePreprocessingParams dto, boolean hasExtensions) {
+        int length = orders.size();
+        int maxDistanceNonExt = dto.maxDistanceBetweenOrderToNonExtensionInMeter();
+        int maxDistanceExt = dto.maxDistanceBetweenOrderToExtensionInMeter();
+        int prohibitiveDistance = (hasExtensions ? dto.maxTotalDistanceWithExtensionInMeter() : dto.maxTotalDistanceWithNonExtensionInMeter()) + 1;
+
+        for (int i = 0; i < length; i++) {
+            for (int j = 0; j < length; j++) {
+                if (isSpecialNode(i, orders) || isSpecialNode(j, orders)) {
+                    if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
+                        distanceMatrix[i][j] = 0;
+                    }
+                    continue;
+                }
+
+                long basicValue = distanceMatrix[i][j];
+                int maxAllowedDistance = (hasExtensions && isExtensionEdge(i, j, orders)) ? maxDistanceExt : maxDistanceNonExt;
+                distanceMatrix[i][j] = isForbiddenOrderEdge(i, j, basicValue, maxAllowedDistance, orders)
+                        ? prohibitiveDistance
+                        : basicValue;
+            }
+        }
+        return distanceMatrix;
+    }
+
+    /**
+     * Folds the fixed overhead (SP to first order) and the inter-stop slack into the OSRM durations,
+     * and relaxes the deadline of any order that cannot be served on time even as the first stop.
+     */
+    protected static long[][] preprocessDurationMatrix(long[][] durationMatrix, List<RouteOrderV2DTO> orders,
+                                                       long[][] timeWindows, RoutePreprocessingParams dto) {
+        int length = orders.size();
+        for (int i = 0; i < length; i++) {
+            for (int j = 0; j < length; j++) {
+                if (isDummyNode(i, orders) || isDummyNode(j, orders)) {
+                    durationMatrix[i][j] = 0;
+                    continue;
+                }
+                if (isSpNode(i, orders) && isOrderNode(j, orders)) {
+                    durationMatrix[i][j] += dto.overheadTimeInSecond();
+                }
+                if (isOrderNode(i, orders) && isOrderNode(j, orders) && i != j) {
+                    durationMatrix[i][j] += dto.slackTimeInSecond();
+                }
+                // An order that cannot be reached in time even as the first stop is already doomed to
+                // be late, so its deadline is dropped rather than allowed to veto batching. Skip this
+                // when OSRM could not route SP -> j at all: that is missing data, not lateness, and
+                // relaxing the window would let the order be spliced mid-route with no deadline.
+                if (isSpNode(i, orders)
+                        && !isUnreachable(durationMatrix[i][j])
+                        && durationMatrix[i][j] > timeWindows[j][1]) {
+                    timeWindows[j][1] = TIME_WINDOW_BYPASS;
+                }
+            }
+        }
+        return durationMatrix;
     }
 
     // ==================== Routing Setup ====================
